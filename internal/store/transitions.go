@@ -1,5 +1,7 @@
 package store
 
+import "slices"
+
 // legality: forward moves may skip in_progress; in_progress→want_to is an
 // undo; done→in_progress is a re-consume; abandoned can be revived;
 // self- and terminal→terminal transitions are illegal.
@@ -12,12 +14,7 @@ var legalTransitions = map[State][]State{
 
 // CanTransition reports whether a lifecycle move from → to is legal.
 func CanTransition(from, to State) bool {
-	for _, s := range legalTransitions[from] {
-		if s == to {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(legalTransitions[from], to)
 }
 
 // LegalTransitions lists the states reachable from the given state, in a
