@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -38,8 +39,21 @@ func main() {
 		os.Exit(1)
 	}
 	registry := setup.FromConfig(cfg.Providers, slog.Default())
+	avail := setup.AvailabilityFromConfig(cfg.Providers, *dataDir, slog.Default())
 
 	exitCode := 0
+	syncCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	fmt.Println("== availability cycle sync")
+	for _, ap := range avail {
+		if syncer, ok := ap.(providers.CycleSyncer); ok {
+			if err := syncer.SyncCycle(syncCtx); err != nil {
+				fmt.Printf("   sync FAILED: %v\n", err)
+				exitCode = 1
+			}
+		}
+	}
+	cancel()
+
 	for _, probe := range probes {
 		fmt.Printf("== %s: %q\n", probe.mediaType, probe.query)
 		p, err := registry.Get(probe.mediaType)
@@ -47,7 +61,7 @@ func main() {
 			fmt.Println("   skipped: not configured")
 			continue
 		}
-		if err := runProbe(p, probe.query); err != nil {
+		if err := runProbe(p, probe.query, avail); err != nil {
 			fmt.Printf("   FAILED: %v\n", err)
 			exitCode = 1
 		}
@@ -55,7 +69,7 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func runProbe(p providers.MetadataProvider, query string) error {
+func runProbe(p providers.MetadataProvider, query string, avail []providers.AvailabilityProvider) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -83,6 +97,28 @@ func runProbe(p providers.MetadataProvider, query string) error {
 		details.CoverURL != nil, len(details.Ratings))
 	for _, r := range details.Ratings {
 		fmt.Printf("     rating %s %d (%s)\n", r.Source, r.Score, r.Display)
+	}
+
+	metaJSON, err := json.Marshal(details.Metadata)
+	if err != nil {
+		metaJSON = nil
+	}
+	item := &store.MediaItem{
+		MediaType:  details.MediaType,
+		Title:      details.Title,
+		Provider:   details.Provider,
+		ProviderID: details.ProviderID,
+		Metadata:   metaJSON,
+	}
+	for _, ap := range avail {
+		rows, err := ap.Refresh(ctx, item)
+		if err != nil {
+			fmt.Printf("   availability FAILED: %v\n", err)
+			continue
+		}
+		for _, a := range rows {
+			fmt.Printf("   available %s/%s url=%t\n", a.ServiceSlug, a.Kind, a.URL != nil)
+		}
 	}
 	return nil
 }

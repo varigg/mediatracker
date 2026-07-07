@@ -6,12 +6,15 @@ package setup
 import (
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/varigg/mediatracker/internal/config"
 	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/providers/books"
+	"github.com/varigg/mediatracker/internal/providers/gamecatalogs"
 	"github.com/varigg/mediatracker/internal/providers/igdb"
+	"github.com/varigg/mediatracker/internal/providers/steam"
 	"github.com/varigg/mediatracker/internal/providers/tmdb"
 	"github.com/varigg/mediatracker/internal/store"
 )
@@ -35,4 +38,24 @@ func FromConfig(p config.Providers, logger *slog.Logger) *providers.Registry {
 			igdb.WithHTTPClient(httpClient), igdb.WithLogger(logger)))
 	}
 	return r
+}
+
+// AvailabilityFromConfig returns the availability enrichers in refresh
+// order. gamecatalogs is always on (no keys needed); tmdbWatch needs the
+// TMDB key; steam needs both key and ID. Callers type-assert
+// providers.CycleSyncer for the once-per-cycle snapshot syncs.
+func AvailabilityFromConfig(p config.Providers, dataDir string, logger *slog.Logger) []providers.AvailabilityProvider {
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	catalogsDir := filepath.Join(dataDir, "catalogs")
+	var out []providers.AvailabilityProvider
+	if p.TMDBKey != "" {
+		c := tmdb.New(p.TMDBKey, "", tmdb.WithHTTPClient(httpClient), tmdb.WithLogger(logger))
+		out = append(out, c.WatchProvider())
+	}
+	out = append(out, gamecatalogs.New(catalogsDir, gamecatalogs.WithLogger(logger)))
+	if p.SteamKey != "" && p.SteamID != "" {
+		out = append(out, steam.New(p.SteamKey, p.SteamID, catalogsDir,
+			steam.WithHTTPClient(httpClient), steam.WithLogger(logger)))
+	}
+	return out
 }
