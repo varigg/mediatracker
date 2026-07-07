@@ -101,6 +101,16 @@ endpoint. **PS+ is consciously deferred to the post-MVP backlog**
 circuit breaker simply keeps failing/skipping every cycle, which the
 existing degrade-never-cascade design already tolerates.
 
+**Closed out 2026-07-07 with TMDB/OMDb still unconfigured** (user's
+TMDB signup is blocked by a CloudFront challenge, unrelated to this
+codebase) — the user chose to proceed to M4 rather than wait. This is
+safe: `registry.Get` degrades an unconfigured provider to "skipped, not
+configured" rather than an error, so `probecheck` already exits clean
+with TMDB/OMDb absent. IGDB, Hardcover, Game Pass, and Steam are all
+verified live. Revisit TMDB/OMDb whenever the signup clears — no code
+changes are anticipated, just re-running `probecheck` and folding back
+any drift, same as the rest of this milestone.
+
 **Scope:** interactive session with the user (API keys are theirs; keys
 go into `config.toml` in the data dir and are NEVER committed, echoed
 into the transcript, or read from `.env`). Steps: user acquires keys
