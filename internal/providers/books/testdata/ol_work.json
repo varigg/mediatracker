@@ -1,0 +1,13 @@
+{
+  "title": "The Hobbit",
+  "description": {
+    "type": "/type/text",
+    "value": "Bilbo Baggins, a respectable, well-to-do hobbit, lives comfortably in his hobbit-hole until the day the wandering wizard Gandalf chooses him to share in an adventure."
+  },
+  "covers": [14625765],
+  "first_publish_date": "September 21, 1937",
+  "subjects": ["Fantasy", "Fiction", "Dragons", "Wizards", "Hobbits", "Adventure", "Middle Earth (Imaginary place)"],
+  "authors": [
+    {"author": {"key": "/authors/OL26320A"}, "type": {"key": "/type/author_role"}}
+  ]
+}

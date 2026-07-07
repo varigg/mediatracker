@@ -1,0 +1,17 @@
+{
+  "numFound": 2,
+  "docs": [
+    {
+      "key": "/works/OL262758W",
+      "title": "The Hobbit",
+      "first_publish_year": 1937,
+      "author_name": ["J.R.R. Tolkien"],
+      "cover_i": 14625765
+    },
+    {
+      "key": "/works/OL27482W",
+      "title": "The Annotated Hobbit",
+      "author_name": ["J.R.R. Tolkien", "Douglas A. Anderson"]
+    }
+  ]
+}

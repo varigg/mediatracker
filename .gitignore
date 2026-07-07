@@ -1,5 +1,6 @@
 .worktrees/
-mediatracker
+/mediatracker
 *.db
 *.db-wal
 *.db-shm
+/probecheck

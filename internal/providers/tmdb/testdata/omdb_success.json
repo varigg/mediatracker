@@ -1,0 +1,9 @@
+{
+  "Title": "The Matrix",
+  "Ratings": [
+    {"Source": "Internet Movie Database", "Value": "8.7/10"},
+    {"Source": "Rotten Tomatoes", "Value": "83%"},
+    {"Source": "Metacritic", "Value": "73/100"}
+  ],
+  "Response": "True"
+}

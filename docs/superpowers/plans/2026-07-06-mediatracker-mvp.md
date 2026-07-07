@@ -91,6 +91,81 @@ names).
 **Key tests:** matcher against snapshot fixtures ("Deluxe Edition" cases);
 circuit-breaker trip/skip; stale-snapshot retention on fetch failure.
 
+## Milestone 3.5 — Live Provider Verification
+
+**Deliverable:** `cmd/probecheck` green against every configured live
+provider; fixtures re-captured wherever real responses drift from the
+hand-authored shapes; `gamecatalogs` Game Pass fetcher wired to the real
+endpoint. **PS+ is consciously deferred to the post-MVP backlog**
+(decided 2026-07-07, see below) — its placeholder stays in place and its
+circuit breaker simply keeps failing/skipping every cycle, which the
+existing degrade-never-cascade design already tolerates.
+
+**Closed out 2026-07-07 with TMDB/OMDb still unconfigured** (user's
+TMDB signup is blocked by a CloudFront challenge, unrelated to this
+codebase) — the user chose to proceed to M4 rather than wait. This is
+safe: `registry.Get` degrades an unconfigured provider to "skipped, not
+configured" rather than an error, so `probecheck` already exits clean
+with TMDB/OMDb absent. IGDB, Hardcover, Game Pass, and Steam are all
+verified live. Revisit TMDB/OMDb whenever the signup clears — no code
+changes are anticipated, just re-running `probecheck` and folding back
+any drift, same as the rest of this milestone.
+
+**Scope:** interactive session with the user (API keys are theirs; keys
+go into `config.toml` in the data dir and are NEVER committed, echoed
+into the transcript, or read from `.env`). Steps: user acquires keys
+(prerequisites below) → user fills `config.toml` → run `probecheck` →
+diff live shapes against `testdata/` fixtures → fix adapters and
+re-capture fixtures where drifted → identify and wire the real Game Pass
+catalog endpoint, replacing the placeholder URL and shape from M3 →
+re-run until green (PS+ excluded — see Post-MVP Backlog). Any adapter
+change follows the usual TDD cycle in a worktree.
+
+**Prerequisites — obtaining keys** (user-facing instructions, also the
+seed for M7's README):
+
+- **TMDB** (`tmdb_key`): account at themoviedb.org → Settings → API →
+  request a developer API key (v3 auth). Free for personal use.
+- **OMDb** (`omdb_key`): omdbapi.com/apikey.aspx → free tier (1,000
+  req/day) → activate via the emailed link.
+- **IGDB** (`igdb_client_id`, `igdb_client_secret`): IGDB auth rides on
+  Twitch. Enable 2FA on your Twitch account, then dev.twitch.tv/console
+  → Register Your Application (OAuth redirect `https://localhost`,
+  category Application Integration) → copy Client ID and generate a
+  Client Secret.
+- **Hardcover** (`hardcover_key`): account at hardcover.app → Settings →
+  Hardcover API → copy the bearer token.
+- **Steam** (`steam_key`, `steam_id`): steamcommunity.com/dev/apikey
+  (domain field may be `localhost`). `steam_id` is your 64-bit SteamID
+  (steamid.io or your profile URL). Game details in your Steam privacy
+  settings must be public for `GetOwnedGames` to return your library.
+- **Game Pass**: no keys — unofficial endpoint; this milestone discovers
+  and validates the real request/response shapes.
+- **PS+**: no keys, but deferred to the post-MVP backlog — the real
+  Game Catalog page renders its grid client-side with no discoverable
+  API call in static HTML/JS; the placeholder ships as-is through MVP.
+
+`config.toml` shape (values are placeholders):
+
+```toml
+listen_addr = ":8080"
+log_level = "info"
+refresh_interval = "168h"
+
+[providers]
+tmdb_key = "..."
+omdb_key = "..."
+igdb_client_id = "..."
+igdb_client_secret = "..."
+hardcover_key = "..."
+steam_key = "..."
+steam_id = "7656119..."
+```
+
+**Key tests:** none new in CI — this milestone's output is verified
+adapters and updated fixtures; existing fixture tests must stay green
+after every re-capture.
+
 ## Milestone 4 — Ingestion & Refresh Orchestration
 
 **Deliverable:** end-to-end add pipeline and the weekly refresher, both
@@ -156,9 +231,31 @@ level configuration; final `probecheck` pass against live providers.
 
 ## Milestone Dependency Order
 
-M1 → M2 → M3 → M4 → M5 (gate) → M6 → M7. M2 and M3 may interleave after
-M1 if a session prefers, but M4 requires both. M5 may run any time after
-M1 but must complete before M6 begins.
+M1 → M2 → M3 → M3.5 → M4 → M5 (gate) → M6 → M7. M2 and M3 may interleave
+after M1 if a session prefers, but M4 requires both. M3.5 (live
+verification, interactive) requires M2+M3 and should precede M4 so the
+ingestion pipeline is built on verified adapters; M7's final probecheck
+pass then only re-confirms. M5 may run any time after M1 but must
+complete before M6 begins.
+
+## Post-MVP Backlog
+
+- **PS+ Game Catalog live endpoint** (deferred 2026-07-07, during
+  M3.5). The consumer-facing catalog (~400 titles, PS+ Extra/Premium)
+  lives at `playstation.com/en-us/ps-plus/games/` and renders
+  client-side with no API call visible in the static HTML/JS — finding
+  it requires a browser-captured network trace, which wasn't available
+  in the M3.5 session. A dead end was ruled out: the PS Store's
+  reverse-engineered GraphQL API (`categoryGridRetrieve` on
+  `web.np.playstation.com`, via the OSS project
+  `mrt1m/playstation-store-api`) has a `PS_PLUS` category id
+  (`038b4df3-bb4c-48f8-8290-3feb35f0f0fd`) that resolves to the legacy
+  "PS Plus Monthly Games" list, not the Extra/Premium catalog — that id
+  is not the answer. Until solved, `gamecatalogs`' PS+ fetcher stays on
+  the M3 placeholder URL, failing every cycle; this is safe (breaker +
+  stale-snapshot retention already handle it) but means PS+ ownership
+  rows are never produced. Pick up by capturing the real network
+  request from a browser session on that page.
 
 ## Self-Review Notes
 

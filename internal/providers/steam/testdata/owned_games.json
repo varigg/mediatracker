@@ -1,0 +1,9 @@
+{
+  "response": {
+    "game_count": 2,
+    "games": [
+      {"appid": 292030, "name": "The Witcher 3: Wild Hunt", "playtime_forever": 9001},
+      {"appid": 1145360, "name": "Hades", "playtime_forever": 3600}
+    ]
+  }
+}

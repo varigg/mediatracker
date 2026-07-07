@@ -1,0 +1,25 @@
+[
+  {
+    "id": 1942,
+    "name": "The Witcher 3: Wild Hunt",
+    "first_release_date": 1431993600,
+    "summary": "The Witcher 3: Wild Hunt is a story-driven, next-generation open world role-playing game.",
+    "url": "https://www.igdb.com/games/the-witcher-3-wild-hunt",
+    "rating": 92.3456,
+    "rating_count": 2801,
+    "aggregated_rating": 91.2,
+    "cover": {"id": 89386, "image_id": "co1wyy"},
+    "genres": [
+      {"id": 12, "name": "Role-playing (RPG)"},
+      {"id": 31, "name": "Adventure"}
+    ],
+    "alternative_names": [
+      {"id": 1, "name": "TW3"},
+      {"id": 2, "name": "Wiedźmin 3: Dziki Gon"}
+    ],
+    "external_games": [
+      {"id": 10, "category": 1, "uid": "292030"},
+      {"id": 11, "category": 5, "uid": "999999"}
+    ]
+  }
+]

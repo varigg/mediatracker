@@ -1,0 +1,21 @@
+{
+  "page": 1,
+  "results": [
+    {
+      "id": 603,
+      "title": "The Matrix",
+      "release_date": "1999-03-31",
+      "poster_path": "/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg",
+      "overview": "Set in the 22nd century, The Matrix tells the story of a computer hacker who joins a group of underground insurgents fighting the vast and powerful computers who now rule the earth."
+    },
+    {
+      "id": 604,
+      "title": "The Matrix Reloaded",
+      "release_date": "2003-05-15",
+      "poster_path": null,
+      "overview": "Six months after the events depicted in The Matrix."
+    }
+  ],
+  "total_pages": 1,
+  "total_results": 2
+}
