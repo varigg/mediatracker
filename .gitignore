@@ -3,3 +3,4 @@ mediatracker
 *.db
 *.db-wal
 *.db-shm
+/probecheck
