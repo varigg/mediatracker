@@ -1,0 +1,130 @@
+package store
+
+import (
+	"context"
+	"net/url"
+	"testing"
+)
+
+// seedListFixture creates four items with distinct types, states, genres,
+// ratings, and availability. added-order (and thus id-order) is Alpha,
+// Bravo, Charlie, Delta.
+func seedListFixture(t *testing.T, s *Store) {
+	t.Helper()
+	ctx := context.Background()
+
+	alpha := mustCreate(t, s, NewItem{MediaType: TypeMovie, Title: "Alpha",
+		ReleaseYear: intPtr(2001), Genres: []string{"Drama"}, Provider: "tmdb", ProviderID: "1"})
+	bravo := mustCreate(t, s, NewItem{MediaType: TypeTV, Title: "Bravo",
+		ReleaseYear: intPtr(1999), Genres: []string{"Comedy"}, Provider: "tmdb", ProviderID: "2"})
+	charlie := mustCreate(t, s, NewItem{MediaType: TypeBook, Title: "Charlie",
+		ReleaseYear: intPtr(2010), Genres: []string{"Drama"}, Provider: "openlibrary", ProviderID: "3"})
+	delta := mustCreate(t, s, NewItem{MediaType: TypeGame, Title: "Delta",
+		ReleaseYear: intPtr(2020), Provider: "igdb", ProviderID: "4"})
+
+	if err := s.UpdateState(ctx, charlie.ID, StateInProgress); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceRatings(ctx, alpha.ID, []Rating{{Source: "imdb", Score: 90, Display: "9.0/10"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceRatings(ctx, bravo.ID, []Rating{{Source: "imdb", Score: 70, Display: "7.0/10"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertAvailability(ctx, bravo.ID, []Availability{
+		{ServiceSlug: "netflix", Kind: "subscription"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertAvailability(ctx, delta.ID, []Availability{
+		{ServiceSlug: "steam", Kind: "owned", URL: strPtr("https://store.steampowered.com/app/4")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func titles(items []MediaItem) []string {
+	out := make([]string, len(items))
+	for i, it := range items {
+		out[i] = it.Title
+	}
+	return out
+}
+
+func TestListItems(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	seedListFixture(t, s)
+	if err := s.SetServiceSubscribed(ctx, "netflix", true); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name   string
+		params url.Values
+		want   []string // titles in expected order
+	}{
+		{"no filters, default added-desc sort", url.Values{},
+			[]string{"Delta", "Charlie", "Bravo", "Alpha"}},
+		{"state filter", url.Values{"state": {"want_to"}},
+			[]string{"Delta", "Bravo", "Alpha"}},
+		{"movies-tv tab types", url.Values{"type": {"movie", "tv"}},
+			[]string{"Bravo", "Alpha"}},
+		{"genre filter", url.Values{"genre": {"Drama"}},
+			[]string{"Charlie", "Alpha"}},
+		{"available to me: subscription + owned", url.Values{"available": {"1"}},
+			[]string{"Delta", "Bravo"}},
+		{"sort title", url.Values{"sort": {"title"}},
+			[]string{"Alpha", "Bravo", "Charlie", "Delta"}},
+		{"sort year desc", url.Values{"sort": {"year"}},
+			[]string{"Delta", "Charlie", "Alpha", "Bravo"}},
+		{"sort rating desc, unrated last by title", url.Values{"sort": {"rating"}},
+			[]string{"Alpha", "Bravo", "Charlie", "Delta"}},
+		{"combined state+type+sort", url.Values{"state": {"want_to"}, "type": {"movie", "tv"}, "sort": {"title"}},
+			[]string{"Alpha", "Bravo"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			items, err := s.ListItems(ctx, c.params)
+			if err != nil {
+				t.Fatalf("ListItems(%v): %v", c.params, err)
+			}
+			got := titles(items)
+			if len(got) != len(c.want) {
+				t.Fatalf("got %v, want %v", got, c.want)
+			}
+			for i := range got {
+				if got[i] != c.want[i] {
+					t.Fatalf("got %v, want %v", got, c.want)
+				}
+			}
+		})
+	}
+}
+
+func TestListItemsUnsubscribedServiceNotAvailable(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	seedListFixture(t, s)
+	// netflix NOT subscribed: only the owned game counts.
+	items, err := s.ListItems(ctx, url.Values{"available": {"1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := titles(items)
+	if len(got) != 1 || got[0] != "Delta" {
+		t.Errorf("got %v, want [Delta]", got)
+	}
+}
+
+func TestBuildListQueryRejectsInvalidParams(t *testing.T) {
+	for _, v := range []url.Values{
+		{"state": {"pending"}},
+		{"type": {"podcast"}},
+		{"sort": {"popularity"}},
+	} {
+		if _, _, err := BuildListQuery(v); err == nil {
+			t.Errorf("BuildListQuery(%v): want error, got nil", v)
+		}
+	}
+}
