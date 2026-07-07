@@ -11,7 +11,7 @@ import (
 )
 
 // Exact-title match; ties broken by popularity (M2 design decision 6).
-const hardcoverQuery = `query BookByTitle($title: citext!) {
+const hardcoverQuery = `query BookByTitle($title: String!) {
   books(where: {title: {_eq: $title}}, order_by: {users_count: desc}, limit: 1) {
     slug
     rating
