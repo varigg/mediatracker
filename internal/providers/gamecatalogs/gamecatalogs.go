@@ -10,7 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/providers/names"
+	"github.com/varigg/mediatracker/internal/store"
 )
 
 // Placeholder defaults — the unofficial endpoints must be verified live
@@ -98,6 +100,30 @@ func (p *Provider) syncCatalog(ctx context.Context, slug string, fetch func(cont
 		return
 	}
 	p.logger.Warn("catalog circuit open, keeping stale snapshot", "catalog", slug)
+}
+
+// Refresh matches a tracked game against the cached catalog snapshots.
+// Non-game items yield nothing; a missing snapshot degrades to no facts.
+func (p *Provider) Refresh(ctx context.Context, item *store.MediaItem) ([]providers.Availability, error) {
+	if item.MediaType != store.TypeGame {
+		return nil, nil
+	}
+	candidates := providers.NameCandidates(item)
+	var out []providers.Availability
+	for _, slug := range []string{slugGamePass, slugPSPlus} {
+		set := p.set(slug)
+		if set == nil {
+			continue
+		}
+		if entry, ok := set.Lookup(candidates...); ok {
+			out = append(out, providers.Availability{
+				ServiceSlug: slug,
+				Kind:        "subscription",
+				URL:         entry.URL,
+			})
+		}
+	}
+	return out, nil
 }
 
 type gamePassResponse struct {
