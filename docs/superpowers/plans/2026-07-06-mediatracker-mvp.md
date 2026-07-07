@@ -118,7 +118,7 @@ seed for M7's README):
   req/day) → activate via the emailed link.
 - **IGDB** (`igdb_client_id`, `igdb_client_secret`): IGDB auth rides on
   Twitch. Enable 2FA on your Twitch account, then dev.twitch.tv/console
-  → Register Your Application (OAuth redirect `http://localhost`,
+  → Register Your Application (OAuth redirect `https://localhost`,
   category Application Integration) → copy Client ID and generate a
   Client Secret.
 - **Hardcover** (`hardcover_key`): account at hardcover.app → Settings →
