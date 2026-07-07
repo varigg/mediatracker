@@ -5,7 +5,7 @@ CREATE TABLE media_items (
     state         TEXT NOT NULL DEFAULT 'want_to'
                   CHECK (state IN ('want_to','in_progress','done','abandoned')),
     verdict       TEXT CHECK (verdict IN ('liked','ok','disliked')),
-    completed_at  DATE,
+    completed_at  TEXT,          -- YYYY-MM-DD; TEXT decltype so the driver returns stored text, not time.Time
     notes         TEXT NOT NULL DEFAULT '',
     release_year  INTEGER,
     genres        TEXT NOT NULL DEFAULT '[]',
@@ -13,8 +13,8 @@ CREATE TABLE media_items (
     provider      TEXT NOT NULL,
     provider_id   TEXT NOT NULL,
     metadata      TEXT NOT NULL DEFAULT '{}',
-    added_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    refreshed_at  DATETIME,
+    added_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    refreshed_at  TEXT,
     UNIQUE (provider, provider_id)
 );
 
@@ -42,8 +42,8 @@ CREATE TABLE availability (
     service_slug  TEXT NOT NULL,
     kind          TEXT NOT NULL CHECK (kind IN ('stream','subscription','owned')),
     url           TEXT,
-    first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fetched_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fetched_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (item_id, service_slug, kind)
 );
 
