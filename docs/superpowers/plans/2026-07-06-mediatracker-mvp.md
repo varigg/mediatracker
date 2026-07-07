@@ -95,19 +95,21 @@ circuit-breaker trip/skip; stale-snapshot retention on fetch failure.
 
 **Deliverable:** `cmd/probecheck` green against every configured live
 provider; fixtures re-captured wherever real responses drift from the
-hand-authored shapes; `gamecatalogs` fetchers wired to the real
-unofficial endpoints (or that gap consciously re-deferred with findings
-documented).
+hand-authored shapes; `gamecatalogs` Game Pass fetcher wired to the real
+endpoint. **PS+ is consciously deferred to the post-MVP backlog**
+(decided 2026-07-07, see below) — its placeholder stays in place and its
+circuit breaker simply keeps failing/skipping every cycle, which the
+existing degrade-never-cascade design already tolerates.
 
 **Scope:** interactive session with the user (API keys are theirs; keys
 go into `config.toml` in the data dir and are NEVER committed, echoed
 into the transcript, or read from `.env`). Steps: user acquires keys
 (prerequisites below) → user fills `config.toml` → run `probecheck` →
 diff live shapes against `testdata/` fixtures → fix adapters and
-re-capture fixtures where drifted → identify and wire real Game Pass/PS+
-catalog endpoints, replacing the placeholder URLs and shapes from M3 →
-re-run until green. Any adapter change follows the usual TDD cycle in a
-worktree.
+re-capture fixtures where drifted → identify and wire the real Game Pass
+catalog endpoint, replacing the placeholder URL and shape from M3 →
+re-run until green (PS+ excluded — see Post-MVP Backlog). Any adapter
+change follows the usual TDD cycle in a worktree.
 
 **Prerequisites — obtaining keys** (user-facing instructions, also the
 seed for M7's README):
@@ -127,8 +129,11 @@ seed for M7's README):
   (domain field may be `localhost`). `steam_id` is your 64-bit SteamID
   (steamid.io or your profile URL). Game details in your Steam privacy
   settings must be public for `GetOwnedGames` to return your library.
-- **Game Pass / PS+**: no keys — unofficial endpoints; this milestone
-  discovers and validates the real request/response shapes.
+- **Game Pass**: no keys — unofficial endpoint; this milestone discovers
+  and validates the real request/response shapes.
+- **PS+**: no keys, but deferred to the post-MVP backlog — the real
+  Game Catalog page renders its grid client-side with no discoverable
+  API call in static HTML/JS; the placeholder ships as-is through MVP.
 
 `config.toml` shape (values are placeholders):
 
@@ -222,6 +227,25 @@ verification, interactive) requires M2+M3 and should precede M4 so the
 ingestion pipeline is built on verified adapters; M7's final probecheck
 pass then only re-confirms. M5 may run any time after M1 but must
 complete before M6 begins.
+
+## Post-MVP Backlog
+
+- **PS+ Game Catalog live endpoint** (deferred 2026-07-07, during
+  M3.5). The consumer-facing catalog (~400 titles, PS+ Extra/Premium)
+  lives at `playstation.com/en-us/ps-plus/games/` and renders
+  client-side with no API call visible in the static HTML/JS — finding
+  it requires a browser-captured network trace, which wasn't available
+  in the M3.5 session. A dead end was ruled out: the PS Store's
+  reverse-engineered GraphQL API (`categoryGridRetrieve` on
+  `web.np.playstation.com`, via the OSS project
+  `mrt1m/playstation-store-api`) has a `PS_PLUS` category id
+  (`038b4df3-bb4c-48f8-8290-3feb35f0f0fd`) that resolves to the legacy
+  "PS Plus Monthly Games" list, not the Extra/Premium catalog — that id
+  is not the answer. Until solved, `gamecatalogs`' PS+ fetcher stays on
+  the M3 placeholder URL, failing every cycle; this is safe (breaker +
+  stale-snapshot retention already handle it) but means PS+ ownership
+  rows are never produced. Pick up by capturing the real network
+  request from a browser session on that page.
 
 ## Self-Review Notes
 
