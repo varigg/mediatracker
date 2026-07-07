@@ -1,0 +1,7 @@
+{
+  "data": {
+    "books": [
+      {"slug": "the-hobbit", "rating": 4.28, "ratings_count": 41234}
+    ]
+  }
+}

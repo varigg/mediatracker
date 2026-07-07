@@ -144,7 +144,7 @@ func (p *Provider) Hydrate(ctx context.Context, providerID string) (*providers.I
 		Provider:    "openlibrary",
 		ProviderID:  providerID,
 		Metadata:    metadata,
-		Ratings:     nil, // Hardcover enrichment lands with hardcover.go
+		Ratings:     p.hardcoverRating(ctx, work.Title),
 	}, nil
 }
 
