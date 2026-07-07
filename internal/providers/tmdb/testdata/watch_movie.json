@@ -1,0 +1,23 @@
+{
+  "id": 603,
+  "results": {
+    "US": {
+      "link": "https://www.themoviedb.org/movie/603-the-matrix/watch?locale=US",
+      "flatrate": [
+        {"provider_id": 8, "provider_name": "Netflix"},
+        {"provider_id": 9, "provider_name": "Amazon Prime Video"},
+        {"provider_id": 999, "provider_name": "Some New Service"}
+      ],
+      "ads": [
+        {"provider_id": 386, "provider_name": "Peacock Premium"}
+      ],
+      "rent": [
+        {"provider_id": 2, "provider_name": "Apple TV"}
+      ]
+    },
+    "DE": {
+      "link": "https://www.themoviedb.org/movie/603-the-matrix/watch?locale=DE",
+      "flatrate": [{"provider_id": 30, "provider_name": "WOW"}]
+    }
+  }
+}
