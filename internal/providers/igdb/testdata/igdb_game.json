@@ -16,6 +16,10 @@
     "alternative_names": [
       {"id": 1, "name": "TW3"},
       {"id": 2, "name": "Wiedźmin 3: Dziki Gon"}
+    ],
+    "external_games": [
+      {"id": 10, "category": 1, "uid": "292030"},
+      {"id": 11, "category": 5, "uid": "999999"}
     ]
   }
 ]

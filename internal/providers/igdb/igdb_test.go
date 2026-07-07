@@ -171,6 +171,9 @@ func TestHydrate(t *testing.T) {
 	if !ok || len(alts) != 2 {
 		t.Errorf("metadata alternative_names = %v, want 2 names", got.Metadata["alternative_names"])
 	}
+	if appID, ok := got.Metadata["steam_appid"].(int64); !ok || appID != 292030 {
+		t.Errorf("metadata steam_appid = %v, want int64 292030 (category-1 external game)", got.Metadata["steam_appid"])
+	}
 
 	if len(got.Ratings) != 2 {
 		t.Fatalf("got %d ratings, want 2: %+v", len(got.Ratings), got.Ratings)

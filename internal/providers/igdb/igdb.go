@@ -82,6 +82,10 @@ type game struct {
 	AlternativeNames []struct {
 		Name string `json:"name"`
 	} `json:"alternative_names"`
+	ExternalGames []struct {
+		Category int    `json:"category"`
+		UID      string `json:"uid"`
+	} `json:"external_games"`
 }
 
 func (p *Provider) Search(ctx context.Context, query string) ([]providers.Candidate, error) {
@@ -117,7 +121,7 @@ func (p *Provider) Hydrate(ctx context.Context, providerID string) (*providers.I
 	if err != nil {
 		return nil, fmt.Errorf("igdb: provider id %q: %w", providerID, err)
 	}
-	body := fmt.Sprintf(`fields name,first_release_date,summary,url,rating,rating_count,aggregated_rating,cover.image_id,genres.name,alternative_names.name; where id = %d;`, id)
+	body := fmt.Sprintf(`fields name,first_release_date,summary,url,rating,rating_count,aggregated_rating,cover.image_id,genres.name,alternative_names.name,external_games.category,external_games.uid; where id = %d;`, id)
 	var games []game
 	if err := p.query(ctx, body, &games); err != nil {
 		return nil, err
@@ -147,6 +151,14 @@ func (p *Provider) Hydrate(ctx context.Context, providerID string) (*providers.I
 	}
 	if coverURL != nil {
 		metadata["cover_url"] = *coverURL
+	}
+	for _, eg := range g.ExternalGames {
+		if eg.Category == 1 { // Steam; the steam enricher matches by this app ID
+			if appID, err := strconv.ParseInt(eg.UID, 10, 64); err == nil {
+				metadata["steam_appid"] = appID
+				break
+			}
+		}
 	}
 
 	var ratings []providers.Rating
