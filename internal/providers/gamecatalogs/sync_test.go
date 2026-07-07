@@ -29,7 +29,8 @@ func newTestProvider(t *testing.T, mux *http.ServeMux, opts ...Option) *Provider
 	t.Cleanup(srv.Close)
 	dir := filepath.Join(t.TempDir(), "catalogs")
 	all := append([]Option{
-		WithGamePassURL(srv.URL + "/gamepass"),
+		WithGamePassSiglsURL(srv.URL + "/sigls"),
+		WithGamePassProductsURL(srv.URL + "/products"),
 		WithPSPlusURL(srv.URL + "/psplus"),
 	}, opts...)
 	return New(dir, all...)
@@ -38,7 +39,8 @@ func newTestProvider(t *testing.T, mux *http.ServeMux, opts ...Option) *Provider
 func healthyMux(t *testing.T) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/gamepass", serveFixture(t, "gamepass_catalog.json"))
+	mux.HandleFunc("/sigls", serveFixture(t, "gamepass_sigls.json"))
+	mux.HandleFunc("/products", serveFixture(t, "gamepass_products.json"))
 	mux.HandleFunc("/psplus", serveFixture(t, "psplus_catalog.json"))
 	return mux
 }
@@ -67,13 +69,14 @@ func TestSyncCycleWritesSnapshots(t *testing.T) {
 func TestSyncCycleRetainsStaleSnapshotOnFailure(t *testing.T) {
 	failing := false
 	mux := http.NewServeMux()
-	mux.HandleFunc("/gamepass", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/sigls", func(w http.ResponseWriter, r *http.Request) {
 		if failing {
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
-		serveFixture(t, "gamepass_catalog.json")(w, r)
+		serveFixture(t, "gamepass_sigls.json")(w, r)
 	})
+	mux.HandleFunc("/products", serveFixture(t, "gamepass_products.json"))
 	mux.HandleFunc("/psplus", serveFixture(t, "psplus_catalog.json"))
 	p := newTestProvider(t, mux)
 
@@ -96,7 +99,7 @@ func TestSyncCycleRetainsStaleSnapshotOnFailure(t *testing.T) {
 func TestSyncCycleBreakerLimitsRequests(t *testing.T) {
 	var gamePassCalls int
 	mux := http.NewServeMux()
-	mux.HandleFunc("/gamepass", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/sigls", func(w http.ResponseWriter, r *http.Request) {
 		gamePassCalls++
 		w.WriteHeader(http.StatusBadGateway)
 	})
@@ -116,8 +119,8 @@ func TestSyncCycleBreakerLimitsRequests(t *testing.T) {
 
 func TestSyncCycleTreatsEmptyCatalogAsFailure(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/gamepass", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"products": []}`))
+	mux.HandleFunc("/sigls", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`[]`))
 	})
 	mux.HandleFunc("/psplus", serveFixture(t, "psplus_catalog.json"))
 	p := newTestProvider(t, mux)

@@ -1,0 +1,22 @@
+{
+  "Products": [
+    {
+      "ProductId": "9NKX70BBCDRN",
+      "LocalizedProperties": [
+        {"ProductTitle": "Forza Horizon 5 Deluxe Edition"}
+      ]
+    },
+    {
+      "ProductId": "9PP5G1F0C2B6",
+      "LocalizedProperties": [
+        {"ProductTitle": "Halo Infinite"}
+      ]
+    },
+    {
+      "ProductId": "9GRNDTX00001",
+      "LocalizedProperties": [
+        {"ProductTitle": "Grounded"}
+      ]
+    }
+  ]
+}

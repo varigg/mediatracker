@@ -43,7 +43,7 @@ func TestRefreshMatchesEditionAcrossCatalogs(t *testing.T) {
 	if row.ServiceSlug != "game_pass" || row.Kind != "subscription" {
 		t.Errorf("row = %+v, want game_pass/subscription", row)
 	}
-	if row.URL == nil || *row.URL != "https://www.xbox.com/en-US/games/store/forza-horizon-5/9NKX70BBCDRN" {
+	if row.URL == nil || *row.URL != "https://www.xbox.com/en-us/games/store/forza-horizon-5-deluxe-edition/9NKX70BBCDRN" {
 		t.Errorf("URL = %v, want catalog store URL", row.URL)
 	}
 

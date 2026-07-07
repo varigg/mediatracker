@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,11 +16,25 @@ import (
 	"github.com/varigg/mediatracker/internal/store"
 )
 
-// Placeholder defaults — the unofficial endpoints must be verified live
-// via cmd/probecheck in Milestone 3.5 (M3 design decision 3).
+// Game Pass catalog fetch is a two-step call against Microsoft's real
+// catalog services, verified live in Milestone 3.5: the sigls endpoint
+// lists product IDs for a curated list, then displaycatalog hydrates
+// those IDs into titles. gamePassListID is the "All PC Games" list —
+// this deployment only tracks PC Game Pass.
+//
+// PS+ remains a placeholder: the PS Store's real Game Catalog page
+// renders its grid client-side with no discoverable API call, and the
+// one reverse-engineered category ID found (via a third-party library)
+// resolves to the legacy, near-always-empty "PS Plus Monthly Games"
+// list rather than the Extra/Premium catalog. Deferred pending a
+// browser-captured network trace of the real request.
 const (
-	defaultGamePassURL = "https://catalog.gamepass.com/products"
-	defaultPSPlusURL   = "https://catalog.playstation.com/psplus/games"
+	defaultGamePassSiglsURL    = "https://catalog.gamepass.com/sigls/v2"
+	defaultGamePassProductsURL = "https://displaycatalog.mp.microsoft.com/v7.0/products"
+	gamePassListID             = "fdd9e2a7-0fee-49f6-ad69-4354098401ff" // All PC Games
+	gamePassBatchSize          = 100
+
+	defaultPSPlusURL = "https://catalog.playstation.com/psplus/games"
 
 	breakerThreshold = 3
 
@@ -28,13 +43,14 @@ const (
 )
 
 type Provider struct {
-	dir         string // {dataDir}/catalogs
-	gamePassURL string
-	psPlusURL   string
-	httpClient  *http.Client
-	logger      *slog.Logger
-	now         func() time.Time
-	breakers    map[string]*breaker
+	dir                 string // {dataDir}/catalogs
+	gamePassSiglsURL    string
+	gamePassProductsURL string
+	psPlusURL           string
+	httpClient          *http.Client
+	logger              *slog.Logger
+	now                 func() time.Time
+	breakers            map[string]*breaker
 
 	mu   sync.Mutex
 	sets map[string]*names.Set
@@ -42,17 +58,19 @@ type Provider struct {
 
 type Option func(*Provider)
 
-func WithGamePassURL(u string) Option      { return func(p *Provider) { p.gamePassURL = u } }
-func WithPSPlusURL(u string) Option        { return func(p *Provider) { p.psPlusURL = u } }
-func WithHTTPClient(h *http.Client) Option { return func(p *Provider) { p.httpClient = h } }
-func WithLogger(l *slog.Logger) Option     { return func(p *Provider) { p.logger = l } }
-func WithNow(now func() time.Time) Option  { return func(p *Provider) { p.now = now } }
+func WithGamePassSiglsURL(u string) Option    { return func(p *Provider) { p.gamePassSiglsURL = u } }
+func WithGamePassProductsURL(u string) Option { return func(p *Provider) { p.gamePassProductsURL = u } }
+func WithPSPlusURL(u string) Option           { return func(p *Provider) { p.psPlusURL = u } }
+func WithHTTPClient(h *http.Client) Option    { return func(p *Provider) { p.httpClient = h } }
+func WithLogger(l *slog.Logger) Option        { return func(p *Provider) { p.logger = l } }
+func WithNow(now func() time.Time) Option     { return func(p *Provider) { p.now = now } }
 
 func New(dir string, opts ...Option) *Provider {
 	p := &Provider{
-		dir:         dir,
-		gamePassURL: defaultGamePassURL,
-		psPlusURL:   defaultPSPlusURL,
+		dir:                 dir,
+		gamePassSiglsURL:    defaultGamePassSiglsURL,
+		gamePassProductsURL: defaultGamePassProductsURL,
+		psPlusURL:           defaultPSPlusURL,
 		// aggressive timeout: unofficial endpoints must not stall a cycle
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		logger:     slog.Default(),
@@ -126,31 +144,79 @@ func (p *Provider) Refresh(ctx context.Context, item *store.MediaItem) ([]provid
 	return out, nil
 }
 
-type gamePassResponse struct {
-	Products []struct {
-		Title string `json:"title"`
-		URL   string `json:"url"`
-	} `json:"products"`
+type sigl struct {
+	ID string `json:"id"`
 }
 
+type gamePassProductsResponse struct {
+	Products []struct {
+		ProductID           string `json:"ProductId"`
+		LocalizedProperties []struct {
+			ProductTitle string `json:"ProductTitle"`
+		} `json:"LocalizedProperties"`
+	} `json:"Products"`
+}
+
+// fetchGamePass lists product IDs for the PC Game Pass catalog, then
+// hydrates them into titles in batches (630+ IDs in one query risks
+// exceeding practical URL-length limits on the products endpoint).
 func (p *Provider) fetchGamePass(ctx context.Context) ([]catalogEntry, error) {
-	var resp gamePassResponse
-	if err := p.getJSON(ctx, p.gamePassURL, &resp); err != nil {
+	siglsURL := fmt.Sprintf("%s?id=%s&language=en-us&market=US", p.gamePassSiglsURL, gamePassListID)
+	var sigls []sigl
+	if err := p.getJSON(ctx, siglsURL, &sigls); err != nil {
 		return nil, err
 	}
-	entries := make([]catalogEntry, 0, len(resp.Products))
-	for _, pr := range resp.Products {
-		e := catalogEntry{Name: pr.Title}
-		if pr.URL != "" {
-			u := pr.URL
-			e.URL = &u
+	var ids []string
+	for _, s := range sigls {
+		if s.ID != "" {
+			ids = append(ids, s.ID)
 		}
-		entries = append(entries, e)
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("gamecatalogs: game pass sigls list empty — likely schema drift")
+	}
+
+	var entries []catalogEntry
+	for start := 0; start < len(ids); start += gamePassBatchSize {
+		batch := ids[start:min(start+gamePassBatchSize, len(ids))]
+		productsURL := fmt.Sprintf("%s?bigIds=%s&market=US&languages=en-us", p.gamePassProductsURL, strings.Join(batch, ","))
+		var resp gamePassProductsResponse
+		if err := p.getJSON(ctx, productsURL, &resp); err != nil {
+			return nil, err
+		}
+		for _, pr := range resp.Products {
+			if pr.ProductID == "" || len(pr.LocalizedProperties) == 0 || pr.LocalizedProperties[0].ProductTitle == "" {
+				continue
+			}
+			title := pr.LocalizedProperties[0].ProductTitle
+			u := gamePassStoreURL(title, pr.ProductID)
+			entries = append(entries, catalogEntry{Name: title, URL: &u})
+		}
 	}
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("gamecatalogs: game pass catalog empty — likely schema drift")
 	}
 	return entries, nil
+}
+
+// gamePassStoreURL mirrors the slugification xbox.com itself uses for
+// product-page URLs: lowercase, non-alphanumerics collapsed to single
+// dashes, leading/trailing dashes trimmed.
+func gamePassStoreURL(title, productID string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(title) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			dash = false
+		case !dash && b.Len() > 0:
+			b.WriteRune('-')
+			dash = true
+		}
+	}
+	slug := strings.TrimSuffix(b.String(), "-")
+	return fmt.Sprintf("https://www.xbox.com/en-us/games/store/%s/%s", slug, productID)
 }
 
 type psPlusResponse struct {
