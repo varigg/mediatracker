@@ -64,8 +64,8 @@ snapshot persistence.
    defined by our fixtures and default URLs marked as placeholders
    behind `WithGamePassURL`/`WithPSPlusURL` options. Live-endpoint
    verification is a probecheck exercise (it will print FAILED for
-   gamecatalogs until then) and is tracked as a prerequisite of the M7
-   release pass. Snapshots are stored in **our own normalized format**
+   gamecatalogs until then) and is Milestone 3.5's job (approved
+   2026-07-07). Snapshots are stored in **our own normalized format**
    (`{fetched_at, entries:[{name,url}]}`), so upstream drift is contained
    in the fetchers.
 4. **Circuit breaker semantics.** Per-catalog breaker, threshold 3
