@@ -1,0 +1,14 @@
+{
+  "id": 603,
+  "title": "The Matrix",
+  "release_date": "1999-03-31",
+  "genres": [
+    {"id": 28, "name": "Action"},
+    {"id": 878, "name": "Science Fiction"}
+  ],
+  "poster_path": "/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg",
+  "overview": "Set in the 22nd century, The Matrix tells the story of a computer hacker who joins a group of underground insurgents.",
+  "runtime": 136,
+  "imdb_id": "tt0133093",
+  "external_ids": {"imdb_id": "tt0133093"}
+}

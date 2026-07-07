@@ -68,7 +68,7 @@ func (p movieProvider) Search(ctx context.Context, q string) ([]providers.Candid
 }
 
 func (p movieProvider) Hydrate(ctx context.Context, id string) (*providers.ItemDetails, error) {
-	return nil, fmt.Errorf("tmdb: hydrate not implemented")
+	return p.c.hydrate(ctx, store.TypeMovie, id)
 }
 
 func (p tvProvider) Search(ctx context.Context, q string) ([]providers.Candidate, error) {
@@ -76,7 +76,7 @@ func (p tvProvider) Search(ctx context.Context, q string) ([]providers.Candidate
 }
 
 func (p tvProvider) Hydrate(ctx context.Context, id string) (*providers.ItemDetails, error) {
-	return nil, fmt.Errorf("tmdb: hydrate not implemented")
+	return p.c.hydrate(ctx, store.TypeTV, id)
 }
 
 // TMDB movie and TV IDs are separate numeric namespaces, so provider_id
@@ -132,6 +132,83 @@ func (c *Client) search(ctx context.Context, path string, mt store.MediaType, qu
 		})
 	}
 	return candidates, nil
+}
+
+type detailsResponse struct {
+	ID           int64  `json:"id"`
+	Title        string `json:"title"` // movies
+	Name         string `json:"name"`  // tv
+	ReleaseDate  string `json:"release_date"`
+	FirstAirDate string `json:"first_air_date"`
+	Genres       []struct {
+		Name string `json:"name"`
+	} `json:"genres"`
+	PosterPath      *string `json:"poster_path"`
+	Overview        string  `json:"overview"`
+	Runtime         *int    `json:"runtime"`           // movies
+	NumberOfSeasons *int    `json:"number_of_seasons"` // tv
+	IMDBID          string  `json:"imdb_id"`           // movies only
+	ExternalIDs     struct {
+		IMDBID string `json:"imdb_id"`
+	} `json:"external_ids"` // via append_to_response; how TV gets its IMDB ID
+}
+
+func (c *Client) hydrate(ctx context.Context, mt store.MediaType, provID string) (*providers.ItemDetails, error) {
+	id, err := parseProviderID(mt, provID)
+	if err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/movie/%d", id)
+	if mt == store.TypeTV {
+		path = fmt.Sprintf("/tv/%d", id)
+	}
+	var resp detailsResponse
+	if err := c.get(ctx, path, url.Values{"append_to_response": {"external_ids"}}, &resp); err != nil {
+		return nil, err
+	}
+
+	title, date := resp.Title, resp.ReleaseDate
+	if mt == store.TypeTV {
+		title, date = resp.Name, resp.FirstAirDate
+	}
+	genres := make([]string, 0, len(resp.Genres))
+	for _, g := range resp.Genres {
+		genres = append(genres, g.Name)
+	}
+	imdbID := resp.IMDBID
+	if imdbID == "" {
+		imdbID = resp.ExternalIDs.IMDBID
+	}
+
+	metadata := map[string]any{
+		"tmdb_id":  resp.ID,
+		"overview": resp.Overview,
+	}
+	if imdbID != "" {
+		metadata["imdb_id"] = imdbID
+	}
+	if resp.Runtime != nil {
+		metadata["runtime_minutes"] = *resp.Runtime
+	}
+	if resp.NumberOfSeasons != nil {
+		metadata["seasons"] = *resp.NumberOfSeasons
+	}
+	coverURL := c.imageURL(resp.PosterPath, "w500")
+	if coverURL != nil {
+		metadata["poster_url"] = *coverURL
+	}
+
+	return &providers.ItemDetails{
+		MediaType:   mt,
+		Title:       title,
+		ReleaseYear: yearOf(date),
+		Genres:      genres,
+		CoverURL:    coverURL,
+		Provider:    "tmdb",
+		ProviderID:  providerID(mt, resp.ID),
+		Metadata:    metadata,
+		Ratings:     c.omdbRatings(ctx, imdbID),
+	}, nil
 }
 
 func (c *Client) get(ctx context.Context, path string, params url.Values, dst any) error {
