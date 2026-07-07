@@ -23,6 +23,7 @@
 - Work in worktree `.worktrees/m1-skeleton-storage` on branch `m1-skeleton-storage` (per user global CLAUDE.md).
 - Before every commit: `gofmt -l .` must print nothing and `go vet ./...` must pass.
 - Timestamps are stored and surfaced as SQLite text (`YYYY-MM-DD HH:MM:SS`); model fields use `string`/`*string`, not `time.Time`. `completed_at` is a bare date `YYYY-MM-DD`.
+- **Execution deviation:** timestamp columns are declared `TEXT` (not `DATE`/`DATETIME`) — modernc.org/sqlite converts `DATE`/`DATETIME`-declared columns to `time.Time` at scan time, which broke string round-trips. `CURRENT_TIMESTAMP`/`DATE('now')` storage semantics are unchanged.
 
 ### Decision: transition legality matrix (needs sign-off)
 
