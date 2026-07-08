@@ -1,33 +1,39 @@
 package store
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // ReplaceRatings replaces all rating rows for an item atomically.
 func (s *Store) ReplaceRatings(ctx context.Context, itemID int64, ratings []Rating) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: replace ratings: %w", err)
 	}
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM ratings WHERE item_id = ?`, itemID); err != nil {
-		return err
+		return fmt.Errorf("store: replace ratings: %w", err)
 	}
 	for _, r := range ratings {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO ratings
 			(item_id, source, score, display, url) VALUES (?, ?, ?, ?, ?)`,
 			itemID, r.Source, r.Score, r.Display, r.URL); err != nil {
-			return err
+			return fmt.Errorf("store: replace ratings: %w", err)
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: replace ratings: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) GetRatings(ctx context.Context, itemID int64) ([]Rating, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT item_id, source, score, display, url
 		FROM ratings WHERE item_id = ? ORDER BY source`, itemID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: get ratings: %w", err)
 	}
 	defer rows.Close()
 
@@ -35,11 +41,14 @@ func (s *Store) GetRatings(ctx context.Context, itemID int64) ([]Rating, error) 
 	for rows.Next() {
 		var r Rating
 		if err := rows.Scan(&r.ItemID, &r.Source, &r.Score, &r.Display, &r.URL); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("store: get ratings: %w", err)
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: get ratings: %w", err)
+	}
+	return out, nil
 }
 
 // UpsertAvailability inserts or refreshes availability rows. Existing rows
@@ -48,7 +57,7 @@ func (s *Store) GetRatings(ctx context.Context, itemID int64) ([]Rating, error) 
 func (s *Store) UpsertAvailability(ctx context.Context, itemID int64, avail []Availability) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: upsert availability: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -58,10 +67,13 @@ func (s *Store) UpsertAvailability(ctx context.Context, itemID int64, avail []Av
 			ON CONFLICT (item_id, service_slug, kind)
 			DO UPDATE SET url = excluded.url, fetched_at = CURRENT_TIMESTAMP`,
 			itemID, a.ServiceSlug, a.Kind, a.URL); err != nil {
-			return err
+			return fmt.Errorf("store: upsert availability: %w", err)
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: upsert availability: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) GetAvailability(ctx context.Context, itemID int64) ([]Availability, error) {
@@ -69,7 +81,7 @@ func (s *Store) GetAvailability(ctx context.Context, itemID int64) ([]Availabili
 		first_seen_at, fetched_at FROM availability WHERE item_id = ?
 		ORDER BY service_slug, kind`, itemID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: get availability: %w", err)
 	}
 	defer rows.Close()
 
@@ -78,18 +90,21 @@ func (s *Store) GetAvailability(ctx context.Context, itemID int64) ([]Availabili
 		var a Availability
 		if err := rows.Scan(&a.ItemID, &a.ServiceSlug, &a.Kind, &a.URL,
 			&a.FirstSeenAt, &a.FetchedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("store: get availability: %w", err)
 		}
 		out = append(out, a)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: get availability: %w", err)
+	}
+	return out, nil
 }
 
 func (s *Store) ListServices(ctx context.Context) ([]Service, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT slug, name, media_kind, subscribed FROM services ORDER BY media_kind, name`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: list services: %w", err)
 	}
 	defer rows.Close()
 
@@ -97,21 +112,24 @@ func (s *Store) ListServices(ctx context.Context) ([]Service, error) {
 	for rows.Next() {
 		var svc Service
 		if err := rows.Scan(&svc.Slug, &svc.Name, &svc.MediaKind, &svc.Subscribed); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("store: list services: %w", err)
 		}
 		out = append(out, svc)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: list services: %w", err)
+	}
+	return out, nil
 }
 
 func (s *Store) SetServiceSubscribed(ctx context.Context, slug string, subscribed bool) error {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE services SET subscribed = ? WHERE slug = ?`, subscribed, slug)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: set service subscribed: %w", err)
 	}
 	if rows, err := res.RowsAffected(); err != nil {
-		return err
+		return fmt.Errorf("store: set service subscribed: %w", err)
 	} else if rows == 0 {
 		return ErrNotFound
 	}

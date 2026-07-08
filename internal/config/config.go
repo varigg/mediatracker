@@ -38,7 +38,7 @@ type Duration struct {
 func (d *Duration) UnmarshalText(text []byte) error {
 	v, err := time.ParseDuration(string(text))
 	if err != nil {
-		return err
+		return fmt.Errorf("config: parse duration %q: %w", text, err)
 	}
 	d.Duration = v
 	return nil
@@ -62,10 +62,10 @@ func Load(dataDir string) (Config, error) {
 		return cfg, nil
 	}
 	if err != nil {
-		return cfg, err
+		return cfg, fmt.Errorf("config: read %s: %w", path, err)
 	}
 	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return cfg, fmt.Errorf("parse %s: %w", path, err)
+		return cfg, fmt.Errorf("config: parse %s: %w", path, err)
 	}
 	return cfg, nil
 }

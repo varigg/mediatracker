@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -133,7 +132,7 @@ func TestAddHydrateFailureAborts(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error when Hydrate fails")
 	}
-	items, err := d.Store.ListItems(context.Background(), url.Values{})
+	items, err := d.Store.ListItems(context.Background(), store.ListFilter{})
 	if err != nil {
 		t.Fatalf("ListItems: %v", err)
 	}

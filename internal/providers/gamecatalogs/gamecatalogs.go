@@ -136,7 +136,7 @@ func (p *Provider) Refresh(ctx context.Context, item *store.MediaItem) ([]provid
 		if entry, ok := set.Lookup(candidates...); ok {
 			out = append(out, providers.Availability{
 				ServiceSlug: slug,
-				Kind:        "subscription",
+				Kind:        store.KindSubscription,
 				URL:         entry.URL,
 			})
 		}

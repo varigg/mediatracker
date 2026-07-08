@@ -194,9 +194,6 @@ func (c *Client) hydrate(ctx context.Context, mt store.MediaType, provID string)
 		metadata["seasons"] = *resp.NumberOfSeasons
 	}
 	coverURL := c.imageURL(resp.PosterPath, "w500")
-	if coverURL != nil {
-		metadata["poster_url"] = *coverURL
-	}
 
 	return &providers.ItemDetails{
 		MediaType:   mt,

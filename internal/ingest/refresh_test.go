@@ -253,11 +253,26 @@ func TestOverdueWhenNeverRun(t *testing.T) {
 
 func TestOverdueFalseWithinInterval(t *testing.T) {
 	d, st := newRefresherDeps(t, nil)
-	if err := st.SetSetting(context.Background(), "last_refresh_at", time.Now().UTC().Format("2006-01-02 15:04:05")); err != nil {
+	if err := st.SetSetting(context.Background(), "last_refresh_at", time.Now().UTC().Format(store.TimeFormat)); err != nil {
 		t.Fatalf("SetSetting: %v", err)
 	}
 	r := NewRefresher(d, time.Hour)
 	if r.overdue(context.Background()) {
 		t.Error("want overdue=false right after a cycle completed")
+	}
+}
+
+func TestNewRefresherDefaultsNowWhenUnset(t *testing.T) {
+	d, _ := newRefresherDeps(t, nil)
+	d.Now = nil // exercise the zero-value Deps.Now gap NewRefresher must close
+
+	r := NewRefresher(d, time.Hour)
+
+	// Both call sites that invoke r.deps.Now() must not panic.
+	if !r.overdue(context.Background()) {
+		t.Error("want overdue=true when last_refresh_at was never set")
+	}
+	if _, err := r.RunCycle(context.Background()); err != nil {
+		t.Fatalf("RunCycle: %v", err)
 	}
 }

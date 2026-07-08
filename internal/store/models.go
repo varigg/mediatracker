@@ -34,6 +34,15 @@ const (
 	VerdictDisliked Verdict = "disliked"
 )
 
+// Kind classifies one availability fact.
+type Kind string
+
+const (
+	KindStream       Kind = "stream"
+	KindSubscription Kind = "subscription"
+	KindOwned        Kind = "owned"
+)
+
 // MediaItem mirrors a media_items row. Timestamps are SQLite text
 // ("YYYY-MM-DD HH:MM:SS"); CompletedAt is a bare date ("YYYY-MM-DD").
 type MediaItem struct {
@@ -65,7 +74,7 @@ type Rating struct {
 type Availability struct {
 	ItemID      int64
 	ServiceSlug string
-	Kind        string // stream | subscription | owned
+	Kind        Kind
 	URL         *string
 	FirstSeenAt string
 	FetchedAt   string

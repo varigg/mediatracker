@@ -13,10 +13,6 @@ import (
 
 const lastRefreshSettingKey = "last_refresh_at"
 
-// timeFormat matches the SQLite TEXT timestamp format the store uses
-// elsewhere (CURRENT_TIMESTAMP's default rendering).
-const timeFormat = "2006-01-02 15:04:05"
-
 // ErrItemNotActive is returned by RefreshItem when the target item is
 // not in an active state (want_to/in_progress). Done/abandoned items
 // are frozen and must never be touched by a refresh cycle.
@@ -39,7 +35,13 @@ type Refresher struct {
 	interval time.Duration
 }
 
+// NewRefresher constructs a Refresher, defaulting d.Now to time.Now when
+// the caller leaves it unset so a zero-value Deps doesn't panic on the
+// first refresh cycle.
 func NewRefresher(d Deps, interval time.Duration) *Refresher {
+	if d.Now == nil {
+		d.Now = time.Now
+	}
 	return &Refresher{deps: d, interval: interval}
 }
 
@@ -53,8 +55,8 @@ func (r *Refresher) Start(ctx context.Context) {
 	}
 
 	var jitter time.Duration
-	if max := r.interval / 20; max > 0 { // up to 5% of the interval
-		jitter = rand.N(max)
+	if maxJitter := r.interval / 20; maxJitter > 0 { // up to 5% of the interval
+		jitter = rand.N(maxJitter)
 	}
 	select {
 	case <-ctx.Done():
@@ -87,7 +89,7 @@ func (r *Refresher) overdue(ctx context.Context) bool {
 	if !ok {
 		return true
 	}
-	lastT, err := time.Parse(timeFormat, last)
+	lastT, err := time.Parse(store.TimeFormat, last)
 	if err != nil {
 		return true
 	}
@@ -130,7 +132,7 @@ func (r *Refresher) RunCycle(ctx context.Context) (Summary, error) {
 		}
 	}
 
-	if err := r.deps.Store.SetSetting(ctx, lastRefreshSettingKey, r.deps.Now().UTC().Format(timeFormat)); err != nil {
+	if err := r.deps.Store.SetSetting(ctx, lastRefreshSettingKey, r.deps.Now().UTC().Format(store.TimeFormat)); err != nil {
 		r.deps.Logger.Warn("persist last_refresh_at failed", "error", err)
 	}
 	r.deps.Logger.Info("refresh cycle complete", "items", sum.Items,

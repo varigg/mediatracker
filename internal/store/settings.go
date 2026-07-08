@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 )
 
 // GetSetting reads one key from the settings table. A missing key is not
@@ -15,7 +16,7 @@ func (s *Store) GetSetting(ctx context.Context, key string) (string, bool, error
 		return "", false, nil
 	}
 	if err != nil {
-		return "", false, err
+		return "", false, fmt.Errorf("store: get setting: %w", err)
 	}
 	return value, true, nil
 }
@@ -24,5 +25,8 @@ func (s *Store) GetSetting(ctx context.Context, key string) (string, bool, error
 func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	_, err := s.db.ExecContext(ctx, `INSERT INTO settings (key, value) VALUES (?, ?)
 		ON CONFLICT (key) DO UPDATE SET value = excluded.value`, key, value)
-	return err
+	if err != nil {
+		return fmt.Errorf("store: set setting: %w", err)
+	}
+	return nil
 }

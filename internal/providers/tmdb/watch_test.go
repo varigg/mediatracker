@@ -21,7 +21,7 @@ func TestWatchRefreshMovie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refresh error = %v", err)
 	}
-	byKey := map[string]string{} // slug → kind
+	byKey := map[string]store.Kind{} // slug → kind
 	for _, a := range got {
 		byKey[a.ServiceSlug] = a.Kind
 		wantLink := "https://www.themoviedb.org/movie/603-the-matrix/watch?locale=US"
@@ -29,11 +29,11 @@ func TestWatchRefreshMovie(t *testing.T) {
 			t.Errorf("%s URL = %v, want region link", a.ServiceSlug, a.URL)
 		}
 	}
-	want := map[string]string{
-		"netflix":          "subscription", // alias-mapped
-		"prime_video":      "subscription", // "Amazon Prime Video" alias
-		"some_new_service": "subscription", // unmapped → slugify fallback
-		"peacock":          "stream",       // "Peacock Premium" via ads
+	want := map[string]store.Kind{
+		"netflix":          store.KindSubscription, // alias-mapped
+		"prime_video":      store.KindSubscription, // "Amazon Prime Video" alias
+		"some_new_service": store.KindSubscription, // unmapped → slugify fallback
+		"peacock":          store.KindStream,       // "Peacock Premium" via ads
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d rows %v, want %d", len(got), byKey, len(want))

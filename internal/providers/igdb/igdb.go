@@ -142,20 +142,18 @@ func (p *Provider) Hydrate(ctx context.Context, providerID string) (*providers.I
 	coverURL := p.coverURL(g.Cover.ImageID, "t_cover_big")
 
 	metadata := map[string]any{
-		"igdb_id":           g.ID,
-		"summary":           g.Summary,
-		"alternative_names": altNames, // M3's game-name matcher consumes these
+		"igdb_id": g.ID,
+		"summary": g.Summary,
+		// M3's game-name matcher consumes these via providers.NameCandidates
+		providers.MetadataKeyAlternativeNames: altNames,
 	}
 	if g.URL != "" {
 		metadata["igdb_url"] = g.URL
 	}
-	if coverURL != nil {
-		metadata["cover_url"] = *coverURL
-	}
 	for _, eg := range g.ExternalGames {
 		if eg.Category == 1 { // Steam; the steam enricher matches by this app ID
 			if appID, err := strconv.ParseInt(eg.UID, 10, 64); err == nil {
-				metadata["steam_appid"] = appID
+				metadata[providers.MetadataKeySteamAppID] = appID
 				break
 			}
 		}

@@ -77,19 +77,19 @@ func (p watchProvider) Refresh(ctx context.Context, item *store.MediaItem) ([]pr
 	}
 	var out []providers.Availability
 	seen := map[string]bool{}
-	add := func(entries []watchEntry, kind string) {
+	add := func(entries []watchEntry, kind store.Kind) {
 		for _, e := range entries {
 			slug := slugFor(e.ProviderName)
-			if slug == "" || seen[slug+"/"+kind] {
+			if slug == "" || seen[slug+"/"+string(kind)] {
 				continue
 			}
-			seen[slug+"/"+kind] = true
+			seen[slug+"/"+string(kind)] = true
 			out = append(out, providers.Availability{ServiceSlug: slug, Kind: kind, URL: link})
 		}
 	}
-	add(region.Flatrate, "subscription")
-	add(region.Free, "stream")
-	add(region.Ads, "stream")
+	add(region.Flatrate, store.KindSubscription)
+	add(region.Free, store.KindStream)
+	add(region.Ads, store.KindStream)
 	return out, nil
 }
 

@@ -1,12 +1,16 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/varigg/mediatracker/internal/store"
@@ -19,7 +23,8 @@ func TestHealthzOK(t *testing.T) {
 	}
 	t.Cleanup(func() { st.Close() })
 
-	srv := httptest.NewServer(New(st))
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	srv := httptest.NewServer(New(st, logger))
 	t.Cleanup(srv.Close)
 
 	resp, err := http.Get(srv.URL + "/healthz")
@@ -44,7 +49,9 @@ type failingStore struct{}
 func (failingStore) Ping(context.Context) error { return errors.New("db gone") }
 
 func TestHealthzFailsLoudly(t *testing.T) {
-	srv := httptest.NewServer(New(failingStore{}))
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+	srv := httptest.NewServer(New(failingStore{}, logger))
 	t.Cleanup(srv.Close)
 
 	resp, err := http.Get(srv.URL + "/healthz")
@@ -54,5 +61,8 @@ func TestHealthzFailsLoudly(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", resp.StatusCode)
+	}
+	if !strings.Contains(logBuf.String(), "health check failed") {
+		t.Errorf("log output = %q, want it to contain %q", logBuf.String(), "health check failed")
 	}
 }
