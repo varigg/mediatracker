@@ -21,19 +21,29 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	dsn := path + "?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", path, err)
+		return nil, fmt.Errorf("store: open %s: %w", path, err)
 	}
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("open %s: %w", path, err)
+		return nil, fmt.Errorf("store: open %s: %w", path, err)
 	}
 	if err := migrate(ctx, db); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("migrate %s: %w", path, err)
+		return nil, fmt.Errorf("store: migrate %s: %w", path, err)
 	}
 	return &Store{db: db}, nil
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error {
+	if err := s.db.Close(); err != nil {
+		return fmt.Errorf("store: close: %w", err)
+	}
+	return nil
+}
 
-func (s *Store) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.db.PingContext(ctx); err != nil {
+		return fmt.Errorf("store: ping: %w", err)
+	}
+	return nil
+}

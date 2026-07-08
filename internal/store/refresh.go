@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -15,10 +16,10 @@ func (s *Store) TouchRefreshed(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE media_items SET refreshed_at = CURRENT_TIMESTAMP WHERE id = ?`, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: touch refreshed: %w", err)
 	}
 	if rows, err := res.RowsAffected(); err != nil {
-		return err
+		return fmt.Errorf("store: touch refreshed: %w", err)
 	} else if rows == 0 {
 		return ErrNotFound
 	}
@@ -35,9 +36,13 @@ func (s *Store) ActiveItemsByRefreshDue(ctx context.Context) ([]MediaItem, error
 	rows, err := s.db.QueryContext(ctx, selectItem+
 		` WHERE state IN ('want_to', 'in_progress') ORDER BY refreshed_at ASC`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: active items by refresh due: %w", err)
 	}
-	return scanItems(rows)
+	items, err := scanItems(rows)
+	if err != nil {
+		return nil, fmt.Errorf("store: active items by refresh due: %w", err)
+	}
+	return items, nil
 }
 
 // NewlyAvailable returns want_to items that gained availability on a
@@ -50,7 +55,11 @@ func (s *Store) NewlyAvailable(ctx context.Context, since time.Time) ([]MediaIte
 		WHERE sv.subscribed = 1 AND a.kind IN ('stream', 'subscription') AND a.first_seen_at >= ?
 	) ORDER BY title COLLATE NOCASE ASC`, since.UTC().Format(TimeFormat))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: newly available: %w", err)
 	}
-	return scanItems(rows)
+	items, err := scanItems(rows)
+	if err != nil {
+		return nil, fmt.Errorf("store: newly available: %w", err)
+	}
+	return items, nil
 }

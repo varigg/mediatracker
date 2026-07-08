@@ -20,7 +20,7 @@ const selectItemList = `SELECT mi.id, mi.media_type, mi.title, mi.state, mi.verd
 // ErrInvalidQuery marks a user-input error from ParseListFilter, so
 // callers can distinguish it from a real persistence failure via
 // errors.Is and map it to an HTTP 400 rather than a 500.
-var ErrInvalidQuery = errors.New("invalid list query")
+var ErrInvalidQuery = errors.New("store: invalid list query")
 
 // ListFilter is the persistence layer's own filter/sort vocabulary for
 // ListItems — decoupled from how a caller happens to encode it. Zero
@@ -131,7 +131,11 @@ func (s *Store) ListItems(ctx context.Context, f ListFilter) ([]MediaItem, error
 	q, args := buildListQuery(f)
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: list items: %w", err)
 	}
-	return scanItems(rows)
+	items, err := scanItems(rows)
+	if err != nil {
+		return nil, fmt.Errorf("store: list items: %w", err)
+	}
+	return items, nil
 }

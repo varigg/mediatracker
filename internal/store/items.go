@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	ErrNotFound          = errors.New("not found")
-	ErrIllegalTransition = errors.New("illegal state transition")
-	ErrNotTerminal       = errors.New("item not in a terminal state")
+	ErrNotFound          = errors.New("store: not found")
+	ErrIllegalTransition = errors.New("store: illegal state transition")
+	ErrNotTerminal       = errors.New("store: item not in a terminal state")
 )
 
 type NewItem struct {
@@ -71,7 +71,7 @@ func (s *Store) CreateItem(ctx context.Context, n NewItem) (*MediaItem, bool, er
 	if n.Genres != nil {
 		var err error
 		if genres, err = json.Marshal(n.Genres); err != nil {
-			return nil, false, err
+			return nil, false, fmt.Errorf("store: create item: marshal genres: %w", err)
 		}
 	}
 	metadata := "{}"
@@ -85,14 +85,14 @@ func (s *Store) CreateItem(ctx context.Context, n NewItem) (*MediaItem, bool, er
 		ON CONFLICT (provider, provider_id) DO NOTHING`,
 		n.MediaType, n.Title, n.ReleaseYear, string(genres), n.Provider, n.ProviderID, metadata)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("store: create item: %w", err)
 	}
 	if rows, err := res.RowsAffected(); err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("store: create item: %w", err)
 	} else if rows == 1 {
 		id, err := res.LastInsertId()
 		if err != nil {
-			return nil, false, err
+			return nil, false, fmt.Errorf("store: create item: %w", err)
 		}
 		it, err := s.GetItem(ctx, id)
 		return it, true, err
@@ -100,7 +100,10 @@ func (s *Store) CreateItem(ctx context.Context, n NewItem) (*MediaItem, bool, er
 
 	it, err := scanItem(s.db.QueryRowContext(ctx,
 		selectItem+` WHERE provider = ? AND provider_id = ?`, n.Provider, n.ProviderID))
-	return it, false, err
+	if err != nil {
+		return nil, false, fmt.Errorf("store: create item: %w", err)
+	}
+	return it, false, nil
 }
 
 func (s *Store) GetItem(ctx context.Context, id int64) (*MediaItem, error) {
@@ -108,7 +111,10 @@ func (s *Store) GetItem(ctx context.Context, id int64) (*MediaItem, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return it, err
+	if err != nil {
+		return nil, fmt.Errorf("store: get item: %w", err)
+	}
+	return it, nil
 }
 
 // UpdateState moves an item to a new lifecycle state, enforcing
@@ -117,7 +123,7 @@ func (s *Store) GetItem(ctx context.Context, id int64) (*MediaItem, error) {
 func (s *Store) UpdateState(ctx context.Context, id int64, to State) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: update state: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -127,7 +133,7 @@ func (s *Store) UpdateState(ctx context.Context, id int64, to State) error {
 		return ErrNotFound
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("store: update state: %w", err)
 	}
 	if !CanTransition(from, to) {
 		return fmt.Errorf("%w: %s → %s", ErrIllegalTransition, from, to)
@@ -141,9 +147,12 @@ func (s *Store) UpdateState(ctx context.Context, id int64, to State) error {
 			`UPDATE media_items SET state = ?, verdict = NULL, completed_at = NULL WHERE id = ?`, to, id)
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("store: update state: %w", err)
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: update state: %w", err)
+	}
+	return nil
 }
 
 // UpdateReview sets verdict and completion date; legal only in done or
@@ -152,20 +161,20 @@ func (s *Store) UpdateReview(ctx context.Context, id int64, v Verdict, completed
 	switch v {
 	case VerdictLiked, VerdictOK, VerdictDisliked:
 	default:
-		return fmt.Errorf("invalid verdict %q", v)
+		return fmt.Errorf("store: update review: invalid verdict %q", v)
 	}
 	res, err := s.db.ExecContext(ctx, `UPDATE media_items SET verdict = ?, completed_at = ?
 		WHERE id = ? AND state IN ('done', 'abandoned')`, v, completedAt, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: update review: %w", err)
 	}
 	if rows, err := res.RowsAffected(); err != nil {
-		return err
+		return fmt.Errorf("store: update review: %w", err)
 	} else if rows == 1 {
 		return nil
 	}
 	if _, err := s.GetItem(ctx, id); err != nil {
-		return err // ErrNotFound
+		return err // ErrNotFound, or already wrapped by GetItem
 	}
 	return ErrNotTerminal
 }
@@ -173,10 +182,10 @@ func (s *Store) UpdateReview(ctx context.Context, id int64, v Verdict, completed
 func (s *Store) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	res, err := s.db.ExecContext(ctx, `UPDATE media_items SET notes = ? WHERE id = ?`, notes, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: update notes: %w", err)
 	}
 	if rows, err := res.RowsAffected(); err != nil {
-		return err
+		return fmt.Errorf("store: update notes: %w", err)
 	} else if rows == 0 {
 		return ErrNotFound
 	}
@@ -188,10 +197,10 @@ func (s *Store) UpdateNotes(ctx context.Context, id int64, notes string) error {
 func (s *Store) SetCoverPath(ctx context.Context, id int64, path string) error {
 	res, err := s.db.ExecContext(ctx, `UPDATE media_items SET cover_path = ? WHERE id = ?`, path, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: set cover path: %w", err)
 	}
 	if rows, err := res.RowsAffected(); err != nil {
-		return err
+		return fmt.Errorf("store: set cover path: %w", err)
 	} else if rows == 0 {
 		return ErrNotFound
 	}
