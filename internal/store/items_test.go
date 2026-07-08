@@ -192,3 +192,29 @@ func TestUpdateNotes(t *testing.T) {
 		t.Errorf("missing item err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestSetCoverPath(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	it := mustCreate(t, s, NewItem{MediaType: TypeMovie, Title: "Heat", Provider: "tmdb", ProviderID: "949"})
+	if it.CoverPath != nil {
+		t.Fatalf("new item CoverPath = %v, want nil", it.CoverPath)
+	}
+	if err := s.SetCoverPath(ctx, it.ID, "covers/1.jpg"); err != nil {
+		t.Fatalf("SetCoverPath: %v", err)
+	}
+	got, err := s.GetItem(ctx, it.ID)
+	if err != nil {
+		t.Fatalf("GetItem: %v", err)
+	}
+	if got.CoverPath == nil || *got.CoverPath != "covers/1.jpg" {
+		t.Errorf("CoverPath = %v, want covers/1.jpg", got.CoverPath)
+	}
+}
+
+func TestSetCoverPathNotFound(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.SetCoverPath(context.Background(), 999, "covers/999.jpg"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}

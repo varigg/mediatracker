@@ -20,6 +20,12 @@ const (
 	StateAbandoned  State = "abandoned"
 )
 
+// Active reports whether state is a non-frozen lifecycle state eligible
+// for background refresh (want_to or in_progress).
+func (s State) Active() bool {
+	return s == StateWantTo || s == StateInProgress
+}
+
 type Verdict string
 
 const (

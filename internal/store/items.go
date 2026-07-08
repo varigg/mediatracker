@@ -48,6 +48,21 @@ func scanItem(r rowScanner) (*MediaItem, error) {
 	return &it, nil
 }
 
+// scanItems consumes rows produced by a query using selectItem's column
+// order, closing rows and returning the collected items.
+func scanItems(rows *sql.Rows) ([]MediaItem, error) {
+	defer rows.Close()
+	var items []MediaItem
+	for rows.Next() {
+		it, err := scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *it)
+	}
+	return items, rows.Err()
+}
+
 // CreateItem inserts a new item in state want_to. If (provider,
 // provider_id) already exists, the existing row is returned unmodified and
 // the bool is false — re-adding surfaces the existing item.
@@ -157,6 +172,21 @@ func (s *Store) UpdateReview(ctx context.Context, id int64, v Verdict, completed
 
 func (s *Store) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	res, err := s.db.ExecContext(ctx, `UPDATE media_items SET notes = ? WHERE id = ?`, notes, id)
+	if err != nil {
+		return err
+	}
+	if rows, err := res.RowsAffected(); err != nil {
+		return err
+	} else if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetCoverPath records where a downloaded cover was saved, relative to
+// the data dir (e.g. "covers/42.jpg").
+func (s *Store) SetCoverPath(ctx context.Context, id int64, path string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE media_items SET cover_path = ? WHERE id = ?`, path, id)
 	if err != nil {
 		return err
 	}
