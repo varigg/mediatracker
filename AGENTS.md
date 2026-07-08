@@ -100,9 +100,12 @@ import an adapter.
 gofmt -l . && go vet ./... && go test ./... -count=1
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same plus `go build` and
-`-race`. The pre-commit hook (`.githooks/`, opt-in via
-`git config core.hooksPath .githooks`) mirrors it.
+CI (`.github/workflows/ci.yml`) runs the same plus `go build`, `-race`,
+and coverage floors via go-covercheck (`.go-covercheck.yml`). The
+floors are regression ratchets set just under current reality — if one
+trips, coverage dropped materially; never write filler tests to satisfy
+them. The pre-commit hook (`.githooks/`, opt-in via
+`git config core.hooksPath .githooks`) mirrors the fmt/vet/test steps.
 
 ## Gotchas
 

@@ -31,4 +31,7 @@ jobs:
         run: go build ./...
 
       - name: go test
-        run: go test ./... -race -count=1
+        run: go test ./... -race -count=1 -coverprofile=coverage.out
+
+      - name: coverage floors
+        run: go run github.com/mach6/go-covercheck/cmd/go-covercheck@v0.6.1 --no-color coverage.out

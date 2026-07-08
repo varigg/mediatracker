@@ -1,0 +1,32 @@
+# Coverage floors enforced in CI via go-covercheck.
+#
+# Philosophy (see AGENTS.md): meaningful, high-value tests over coverage
+# maximization. These are regression floors set just under current
+# reality — a failure means coverage dropped materially, not that a
+# target wasn't chased. Raise floors as real coverage rises; never
+# write filler tests to satisfy them.
+
+# Per-file and per-package floor: catches "entirely/mostly untested new
+# code" without nitpicking legitimately thin files.
+statementThreshold: 40
+blockThreshold: 30
+
+perFile:
+  statements:
+    # Type declarations + one 2-line method exercised cross-package.
+    internal/store/models.go: 0
+  blocks:
+    internal/store/models.go: 0
+
+# Aggregate ratchet: current totals (cmd/ skipped) are ~81% statements
+# and ~76% blocks. A drop below these floors means something real
+# regressed.
+total:
+  statements: 75
+  blocks: 70
+
+# cmd/ is deliberately untested: probecheck is a manual live-API
+# utility (never in CI); mediatracker/main.go is wiring verified by
+# boot smoke tests.
+skip:
+  - mediatracker/cmd/
