@@ -100,7 +100,7 @@ func (p *Provider) SyncCycle(ctx context.Context) error {
 		p.logger.Warn("steam owned-games fetch failed, keeping stale list", "error", err)
 		return nil
 	}
-	snap := snapshot{FetchedAt: p.now().UTC().Format("2006-01-02 15:04:05"), Games: games}
+	snap := snapshot{FetchedAt: p.now().UTC().Format(store.TimeFormat), Games: games}
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return err

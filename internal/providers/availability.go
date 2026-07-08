@@ -12,7 +12,7 @@ import (
 // persisting via store.UpsertAvailability.
 type Availability struct {
 	ServiceSlug string
-	Kind        string // stream | subscription | owned
+	Kind        store.Kind
 	URL         *string
 }
 

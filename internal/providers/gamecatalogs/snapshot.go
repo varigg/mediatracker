@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/varigg/mediatracker/internal/providers/names"
+	"github.com/varigg/mediatracker/internal/store"
 )
 
 // snapshot is the normalized on-disk catalog format. Parsing raw
@@ -27,7 +28,7 @@ func (p *Provider) snapshotPath(slug string) string {
 
 func (p *Provider) saveSnapshot(slug string, entries []catalogEntry) error {
 	snap := snapshot{
-		FetchedAt: p.now().UTC().Format("2006-01-02 15:04:05"),
+		FetchedAt: p.now().UTC().Format(store.TimeFormat),
 		Entries:   entries,
 	}
 	data, err := json.MarshalIndent(snap, "", "  ")
