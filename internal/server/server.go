@@ -14,11 +14,11 @@ type Store interface {
 	Ping(ctx context.Context) error
 }
 
-func New(st Store) http.Handler {
+func New(st Store, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := st.Ping(r.Context()); err != nil {
-			slog.Error("health check failed", "error", err)
+			logger.Error("health check failed", "error", err)
 			http.Error(w, "database unavailable", http.StatusInternalServerError)
 			return
 		}

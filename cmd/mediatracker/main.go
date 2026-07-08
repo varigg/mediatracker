@@ -93,7 +93,7 @@ func run() error {
 
 	mux := http.NewServeMux()
 	registerDebugRoutes(mux, deps, refresher)
-	mux.Handle("/", server.New(st))
+	mux.Handle("/", server.New(st, logger))
 
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: mux}
 	errc := make(chan error, 1)
