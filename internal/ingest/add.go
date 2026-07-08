@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"github.com/varigg/mediatracker/internal/covers"
 	"github.com/varigg/mediatracker/internal/providers"
@@ -43,9 +44,7 @@ func Add(ctx context.Context, d Deps, mediaType store.MediaType, providerID stri
 	}
 
 	metadata := make(map[string]any, len(details.Metadata)+1)
-	for k, v := range details.Metadata {
-		metadata[k] = v
-	}
+	maps.Copy(metadata, details.Metadata)
 	if details.CoverURL != nil {
 		metadata["cover_url"] = *details.CoverURL
 	}
