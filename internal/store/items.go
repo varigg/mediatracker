@@ -167,3 +167,18 @@ func (s *Store) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	}
 	return nil
 }
+
+// SetCoverPath records where a downloaded cover was saved, relative to
+// the data dir (e.g. "covers/42.jpg").
+func (s *Store) SetCoverPath(ctx context.Context, id int64, path string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE media_items SET cover_path = ? WHERE id = ?`, path, id)
+	if err != nil {
+		return err
+	}
+	if rows, err := res.RowsAffected(); err != nil {
+		return err
+	} else if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
