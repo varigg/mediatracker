@@ -89,6 +89,7 @@ func run() error {
 		defer wg.Done()
 		refresher.Start(ctx)
 	}()
+	defer wg.Wait()
 
 	mux := http.NewServeMux()
 	registerDebugRoutes(mux, deps, refresher)
@@ -97,18 +98,17 @@ func run() error {
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: mux}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	slog.Info("mediatracker started", "addr", cfg.ListenAddr, "data_dir", *dataDir)
+	logger.Info("mediatracker started", "addr", cfg.ListenAddr, "data_dir", *dataDir)
 
 	select {
 	case err := <-errc:
+		stop() // no signal arrived; cancel ctx ourselves so the refresher goroutine stops before shutdown
 		return err
 	case <-ctx.Done():
-		slog.Info("shutting down")
+		logger.Info("shutting down")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		err := srv.Shutdown(shutdownCtx)
-		wg.Wait()
-		return err
+		return srv.Shutdown(shutdownCtx)
 	}
 }
 
