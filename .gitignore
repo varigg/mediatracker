@@ -4,3 +4,4 @@
 *.db-wal
 *.db-shm
 /probecheck
+coverage.out
