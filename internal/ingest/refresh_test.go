@@ -147,8 +147,12 @@ func TestRefreshItemRunsSameCodePathAsCycle(t *testing.T) {
 	}
 
 	r := NewRefresher(d, time.Hour)
-	if err := r.RefreshItem(ctx, item.ID); err != nil {
+	outcome, err := r.RefreshItem(ctx, item.ID)
+	if err != nil {
 		t.Fatalf("RefreshItem: %v", err)
+	}
+	if outcome.RatingsFailed || outcome.AvailabilityFailed {
+		t.Errorf("outcome = %+v, want no failures", outcome)
 	}
 	got, err := st.GetItem(ctx, item.ID)
 	if err != nil {
@@ -176,7 +180,7 @@ func TestRefreshItemRejectsFrozenItem(t *testing.T) {
 	}
 
 	r := NewRefresher(d, time.Hour)
-	err = r.RefreshItem(ctx, item.ID)
+	_, err = r.RefreshItem(ctx, item.ID)
 	if !errors.Is(err, ErrItemNotActive) {
 		t.Fatalf("RefreshItem error = %v, want ErrItemNotActive", err)
 	}

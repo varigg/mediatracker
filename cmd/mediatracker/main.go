@@ -159,10 +159,12 @@ func registerDebugRoutes(mux *http.ServeMux, deps ingest.Deps, refresher *ingest
 			http.Error(w, "invalid id", http.StatusBadRequest)
 			return
 		}
-		if err := refresher.RefreshItem(r.Context(), id); err != nil {
+		outcome, err := refresher.RefreshItem(r.Context(), id)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(outcome)
 	})
 }

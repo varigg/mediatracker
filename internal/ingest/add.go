@@ -42,9 +42,9 @@ func Add(ctx context.Context, d Deps, mediaType store.MediaType, providerID stri
 		return nil, fmt.Errorf("ingest: hydrate %s %s: %w", mediaType, providerID, err)
 	}
 
-	metadata := details.Metadata
-	if metadata == nil {
-		metadata = map[string]any{}
+	metadata := make(map[string]any, len(details.Metadata)+1)
+	for k, v := range details.Metadata {
+		metadata[k] = v
 	}
 	if details.CoverURL != nil {
 		metadata["cover_url"] = *details.CoverURL

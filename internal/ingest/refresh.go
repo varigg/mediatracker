@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/varigg/mediatracker/internal/providers"
@@ -52,10 +52,9 @@ func (r *Refresher) Start(ctx context.Context) {
 		}
 	}
 
-	jitterMax := int64(r.interval / 20) // up to 5% of the interval
 	var jitter time.Duration
-	if jitterMax > 0 {
-		jitter = time.Duration(rand.Int63n(jitterMax))
+	if max := r.interval / 20; max > 0 { // up to 5% of the interval
+		jitter = rand.N(max)
 	}
 	select {
 	case <-ctx.Done():
@@ -81,7 +80,11 @@ func (r *Refresher) Start(ctx context.Context) {
 // interval (or none is recorded), driving startup catch-up.
 func (r *Refresher) overdue(ctx context.Context) bool {
 	last, ok, err := r.deps.Store.GetSetting(ctx, lastRefreshSettingKey)
-	if err != nil || !ok {
+	if err != nil {
+		r.deps.Logger.Warn("overdue check: read last_refresh_at failed", "error", err)
+		return true
+	}
+	if !ok {
 		return true
 	}
 	lastT, err := time.Parse(timeFormat, last)
@@ -112,10 +115,10 @@ func (r *Refresher) RunCycle(ctx context.Context) (Summary, error) {
 	for i := range items {
 		outcome := r.refreshItem(ctx, &items[i])
 		sum.Items++
-		if outcome.ratingsFailed {
+		if outcome.RatingsFailed {
 			sum.RatingsFailed++
 		}
-		if outcome.availabilityFailed {
+		if outcome.AvailabilityFailed {
 			sum.AvailabilityFailed++
 		}
 		if i < len(items)-1 && r.deps.ItemDelay > 0 {
@@ -137,30 +140,30 @@ func (r *Refresher) RunCycle(ctx context.Context) (Summary, error) {
 
 // RefreshItem refreshes one item via the same per-item logic RunCycle
 // uses, for the manual per-item refresh entry point.
-func (r *Refresher) RefreshItem(ctx context.Context, itemID int64) error {
+func (r *Refresher) RefreshItem(ctx context.Context, itemID int64) (ItemOutcome, error) {
 	item, err := r.deps.Store.GetItem(ctx, itemID)
 	if err != nil {
-		return err
+		return ItemOutcome{}, err
 	}
-	if item.State != store.StateWantTo && item.State != store.StateInProgress {
-		return ErrItemNotActive
+	if !item.State.Active() {
+		return ItemOutcome{}, ErrItemNotActive
 	}
-	r.refreshItem(ctx, item)
-	return nil
+	return r.refreshItem(ctx, item), nil
 }
 
-type refreshOutcome struct {
-	ratingsFailed      bool
-	availabilityFailed bool
+// ItemOutcome reports one item's per-provider refresh result.
+type ItemOutcome struct {
+	RatingsFailed      bool
+	AvailabilityFailed bool
 }
 
-func (r *Refresher) refreshItem(ctx context.Context, item *store.MediaItem) refreshOutcome {
-	var out refreshOutcome
+func (r *Refresher) refreshItem(ctx context.Context, item *store.MediaItem) ItemOutcome {
+	var out ItemOutcome
 
 	if p, err := r.deps.Registry.Get(item.MediaType); err == nil {
 		details, err := p.Hydrate(ctx, item.ProviderID)
 		if err != nil {
-			out.ratingsFailed = true
+			out.RatingsFailed = true
 			r.deps.Logger.Warn("refresh: hydrate failed", "item_id", item.ID, "error", err)
 		} else if len(details.Ratings) > 0 {
 			// Hydrate can succeed with an empty Ratings slice when a
@@ -170,10 +173,12 @@ func (r *Refresher) refreshItem(ctx context.Context, item *store.MediaItem) refr
 			// empty result here is "nothing new," not a failure, and
 			// must not wipe previously-good ratings rows.
 			if err := r.deps.Store.ReplaceRatings(ctx, item.ID, toStoreRatings(item.ID, details.Ratings)); err != nil {
-				out.ratingsFailed = true
+				out.RatingsFailed = true
 				r.deps.Logger.Warn("refresh: replace ratings failed", "item_id", item.ID, "error", err)
 			}
 		}
+	} else {
+		r.deps.Logger.Warn("refresh: no provider registered for media type", "media_type", item.MediaType, "item_id", item.ID)
 	}
 
 	var avail []providers.Availability
@@ -188,10 +193,10 @@ func (r *Refresher) refreshItem(ctx context.Context, item *store.MediaItem) refr
 		avail = append(avail, rows...)
 	}
 	if len(r.deps.Availability) > 0 && failures == len(r.deps.Availability) {
-		out.availabilityFailed = true
+		out.AvailabilityFailed = true
 	}
 	if err := r.deps.Store.UpsertAvailability(ctx, item.ID, toStoreAvailability(item.ID, avail)); err != nil {
-		out.availabilityFailed = true
+		out.AvailabilityFailed = true
 		r.deps.Logger.Warn("refresh: upsert availability failed", "item_id", item.ID, "error", err)
 	}
 
