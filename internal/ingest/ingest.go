@@ -12,10 +12,11 @@ import (
 	"github.com/varigg/mediatracker/internal/store"
 )
 
-// Deps wires everything Add and Refresher need. Now defaults to
-// time.Now in production; tests override it for determinism. ItemDelay
-// is the inter-item pause during a refresh cycle — zero (the test
-// default) means no pause.
+// Deps wires everything Add and Refresher need. Now is used only by
+// Refresher; NewRefresher defaults it to time.Now when left unset, so
+// tests only need to override it for determinism. ItemDelay is the
+// inter-item pause during a refresh cycle — zero (the test default)
+// means no pause.
 type Deps struct {
 	Store        *store.Store
 	Registry     *providers.Registry
