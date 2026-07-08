@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// sqliteTimeFormat is the TEXT timestamp format SQLite's CURRENT_TIMESTAMP
+// TimeFormat is the TEXT timestamp format SQLite's CURRENT_TIMESTAMP
 // produces and the format every stored timestamp comparison must match.
-const sqliteTimeFormat = "2006-01-02 15:04:05"
+const TimeFormat = "2006-01-02 15:04:05"
 
 // TouchRefreshed bumps refreshed_at to now, marking an item as processed
 // by the current refresh cycle.
@@ -48,7 +48,7 @@ func (s *Store) NewlyAvailable(ctx context.Context, since time.Time) ([]MediaIte
 		SELECT a.item_id FROM availability a
 		JOIN services sv ON sv.slug = a.service_slug
 		WHERE sv.subscribed = 1 AND a.kind IN ('stream', 'subscription') AND a.first_seen_at >= ?
-	) ORDER BY title COLLATE NOCASE ASC`, since.UTC().Format(sqliteTimeFormat))
+	) ORDER BY title COLLATE NOCASE ASC`, since.UTC().Format(TimeFormat))
 	if err != nil {
 		return nil, err
 	}
