@@ -3,6 +3,7 @@ package igdb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -57,7 +58,7 @@ func (t *tokenSource) get(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("igdb: decode token: %w", err)
 	}
 	if body.AccessToken == "" {
-		return "", fmt.Errorf("igdb: token endpoint returned empty access_token")
+		return "", errors.New("igdb: token endpoint returned empty access_token")
 	}
 	t.token = body.AccessToken
 	t.expiresAt = t.now().Add(time.Duration(body.ExpiresIn) * time.Second)
