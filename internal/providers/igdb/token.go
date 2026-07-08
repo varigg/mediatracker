@@ -40,7 +40,7 @@ func (t *tokenSource) get(ctx context.Context) (string, error) {
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.tokenURL+"?"+params.Encode(), nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("igdb: build token request: %w", err)
 	}
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
