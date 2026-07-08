@@ -185,27 +185,14 @@ func (p *Provider) Refresh(ctx context.Context, item *store.MediaItem) ([]provid
 	if idx == nil {
 		return nil, nil
 	}
-	if appID, ok := steamAppID(item); ok {
+	if appID, ok := providers.SteamAppID(item); ok {
 		if _, owned := idx.byAppID[appID]; owned {
 			u := storeURL(appID)
-			return []providers.Availability{{ServiceSlug: "steam", Kind: "owned", URL: &u}}, nil
+			return []providers.Availability{{ServiceSlug: "steam", Kind: store.KindOwned, URL: &u}}, nil
 		}
 	}
 	if entry, ok := idx.byName.Lookup(providers.NameCandidates(item)...); ok {
-		return []providers.Availability{{ServiceSlug: "steam", Kind: "owned", URL: entry.URL}}, nil
+		return []providers.Availability{{ServiceSlug: "steam", Kind: store.KindOwned, URL: entry.URL}}, nil
 	}
 	return nil, nil
-}
-
-func steamAppID(item *store.MediaItem) (int64, bool) {
-	if len(item.Metadata) == 0 {
-		return 0, false
-	}
-	var meta struct {
-		SteamAppID int64 `json:"steam_appid"`
-	}
-	if err := json.Unmarshal(item.Metadata, &meta); err != nil || meta.SteamAppID == 0 {
-		return 0, false
-	}
-	return meta.SteamAppID, true
 }

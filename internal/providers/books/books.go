@@ -131,10 +131,6 @@ func (p *Provider) Hydrate(ctx context.Context, providerID string) (*providers.I
 	if desc := decodeDescription(work.Description); desc != "" {
 		metadata["description"] = desc
 	}
-	if coverURL != nil {
-		metadata["cover_url"] = *coverURL
-	}
-
 	return &providers.ItemDetails{
 		MediaType:   store.TypeBook,
 		Title:       work.Title,
