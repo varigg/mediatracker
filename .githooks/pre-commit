@@ -1,0 +1,23 @@
+#!/bin/sh
+# Pre-commit hook: gofmt, go vet, go test.
+#
+# Not installed by default — git doesn't auto-discover hooks outside
+# .git/hooks. Enable once per clone with:
+#   git config core.hooksPath .githooks
+
+set -e
+
+echo "pre-commit: gofmt"
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+	echo "gofmt found unformatted files:"
+	echo "$unformatted"
+	echo "run: gofmt -w ."
+	exit 1
+fi
+
+echo "pre-commit: go vet"
+go vet ./...
+
+echo "pre-commit: go test"
+go test ./... -count=1
