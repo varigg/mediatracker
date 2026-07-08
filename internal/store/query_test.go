@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"testing"
 )
@@ -85,7 +86,11 @@ func TestListItems(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			items, err := s.ListItems(ctx, c.params)
+			f, err := ParseListFilter(c.params)
+			if err != nil {
+				t.Fatalf("ParseListFilter(%v): %v", c.params, err)
+			}
+			items, err := s.ListItems(ctx, f)
 			if err != nil {
 				t.Fatalf("ListItems(%v): %v", c.params, err)
 			}
@@ -107,7 +112,11 @@ func TestListItemsUnsubscribedServiceNotAvailable(t *testing.T) {
 	s := newTestStore(t)
 	seedListFixture(t, s)
 	// netflix NOT subscribed: only the owned game counts.
-	items, err := s.ListItems(ctx, url.Values{"available": {"1"}})
+	f, err := ParseListFilter(url.Values{"available": {"1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.ListItems(ctx, f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,14 +126,16 @@ func TestListItemsUnsubscribedServiceNotAvailable(t *testing.T) {
 	}
 }
 
-func TestBuildListQueryRejectsInvalidParams(t *testing.T) {
+func TestParseListFilterRejectsInvalidParams(t *testing.T) {
 	for _, v := range []url.Values{
 		{"state": {"pending"}},
 		{"type": {"podcast"}},
 		{"sort": {"popularity"}},
 	} {
-		if _, _, err := BuildListQuery(v); err == nil {
-			t.Errorf("BuildListQuery(%v): want error, got nil", v)
+		if _, err := ParseListFilter(v); err == nil {
+			t.Errorf("ParseListFilter(%v): want error, got nil", v)
+		} else if !errors.Is(err, ErrInvalidQuery) {
+			t.Errorf("ParseListFilter(%v): err = %v, want errors.Is(err, ErrInvalidQuery)", v, err)
 		}
 	}
 }
