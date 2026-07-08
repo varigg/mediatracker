@@ -47,7 +47,7 @@ func NewRefresher(d Deps, interval time.Duration) *Refresher {
 // jittered ticker until ctx is done. Call it in its own goroutine.
 func (r *Refresher) Start(ctx context.Context) {
 	if r.overdue(ctx) {
-		if _, err := r.RunCycle(ctx); err != nil {
+		if _, err := r.RunCycle(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			r.deps.Logger.Error("startup refresh cycle failed", "error", err)
 		}
 	}
@@ -70,7 +70,7 @@ func (r *Refresher) Start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if _, err := r.RunCycle(ctx); err != nil {
+			if _, err := r.RunCycle(ctx); err != nil && !errors.Is(err, context.Canceled) {
 				r.deps.Logger.Error("refresh cycle failed", "error", err)
 			}
 		}
@@ -162,9 +162,17 @@ func (r *Refresher) refreshItem(ctx context.Context, item *store.MediaItem) refr
 		if err != nil {
 			out.ratingsFailed = true
 			r.deps.Logger.Warn("refresh: hydrate failed", "item_id", item.ID, "error", err)
-		} else if err := r.deps.Store.ReplaceRatings(ctx, item.ID, toStoreRatings(item.ID, details.Ratings)); err != nil {
-			out.ratingsFailed = true
-			r.deps.Logger.Warn("refresh: replace ratings failed", "item_id", item.ID, "error", err)
+		} else if len(details.Ratings) > 0 {
+			// Hydrate can succeed with an empty Ratings slice when a
+			// sub-source is transiently degraded (e.g. OMDb down,
+			// Hardcover miss). ReplaceRatings is delete-then-insert, so
+			// only call it when there's something new to write — an
+			// empty result here is "nothing new," not a failure, and
+			// must not wipe previously-good ratings rows.
+			if err := r.deps.Store.ReplaceRatings(ctx, item.ID, toStoreRatings(item.ID, details.Ratings)); err != nil {
+				out.ratingsFailed = true
+				r.deps.Logger.Warn("refresh: replace ratings failed", "item_id", item.ID, "error", err)
+			}
 		}
 	}
 

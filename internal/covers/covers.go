@@ -18,8 +18,10 @@ import (
 	"golang.org/x/image/draw"
 )
 
-// maxWidth is the longest edge a saved cover is scaled down to. Covers
-// narrower than this are left at their original size (never upscaled).
+// maxWidth is the width a saved cover is scaled down to when it's
+// wider than this. Covers narrower than this are left at their
+// original size (never upscaled); height is never independently
+// constrained — it scales proportionally with width.
 const maxWidth = 600
 
 // Fetch downloads url, decodes it as JPEG or PNG, scales it down to

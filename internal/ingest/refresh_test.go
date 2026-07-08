@@ -197,6 +197,48 @@ func TestRefreshItemRejectsFrozenItem(t *testing.T) {
 	}
 }
 
+func TestRunCycleDoesNotWipeRatingsOnEmptyHydrate(t *testing.T) {
+	ctx := context.Background()
+	// Hydrate succeeds (err == nil) but returns no ratings, as it does
+	// when a sub-source (OMDb, Hardcover, IGDB) is transiently down.
+	emptyRatingsDetails := &providers.ItemDetails{
+		MediaType:   store.TypeMovie,
+		Title:       "Heat",
+		ReleaseYear: intPtr(1995),
+		Genres:      []string{"Crime"},
+		Provider:    "tmdb",
+		ProviderID:  "949",
+		Metadata:    map[string]any{"overview": "A cop and a thief."},
+		Ratings:     nil,
+	}
+	d, st := newRefresherDeps(t, stubProvider{details: emptyRatingsDetails})
+
+	item, _, err := st.CreateItem(ctx, store.NewItem{MediaType: store.TypeMovie, Title: "Heat", Provider: "tmdb", ProviderID: "949"})
+	if err != nil {
+		t.Fatalf("CreateItem: %v", err)
+	}
+	if err := st.ReplaceRatings(ctx, item.ID, []store.Rating{{Source: "imdb", Score: 82, Display: "8.2/10"}}); err != nil {
+		t.Fatalf("seed ReplaceRatings: %v", err)
+	}
+
+	r := NewRefresher(d, time.Hour)
+	sum, err := r.RunCycle(ctx)
+	if err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+	if sum.RatingsFailed != 0 {
+		t.Errorf("sum.RatingsFailed = %d, want 0 (empty ratings on success is not a failure)", sum.RatingsFailed)
+	}
+
+	ratings, err := st.GetRatings(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("GetRatings: %v", err)
+	}
+	if len(ratings) != 1 || ratings[0].Source != "imdb" {
+		t.Errorf("ratings = %+v, want seeded imdb rating preserved", ratings)
+	}
+}
+
 func TestOverdueWhenNeverRun(t *testing.T) {
 	d, _ := newRefresherDeps(t, nil)
 	r := NewRefresher(d, time.Hour)
