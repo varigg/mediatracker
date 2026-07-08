@@ -163,6 +163,40 @@ func TestRefreshItemRunsSameCodePathAsCycle(t *testing.T) {
 	}
 }
 
+func TestRefreshItemRejectsFrozenItem(t *testing.T) {
+	ctx := context.Background()
+	d, st := newRefresherDeps(t, stubProvider{details: detailsFixture(nil)},
+		stubAvailability{rows: []providers.Availability{{ServiceSlug: "netflix", Kind: "subscription"}}})
+	item, _, err := st.CreateItem(ctx, store.NewItem{MediaType: store.TypeMovie, Title: "A", Provider: "tmdb", ProviderID: "1"})
+	if err != nil {
+		t.Fatalf("CreateItem: %v", err)
+	}
+	if err := st.UpdateState(ctx, item.ID, store.StateDone); err != nil {
+		t.Fatalf("UpdateState: %v", err)
+	}
+
+	r := NewRefresher(d, time.Hour)
+	err = r.RefreshItem(ctx, item.ID)
+	if !errors.Is(err, ErrItemNotActive) {
+		t.Fatalf("RefreshItem error = %v, want ErrItemNotActive", err)
+	}
+
+	got, err := st.GetItem(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("GetItem: %v", err)
+	}
+	if got.RefreshedAt != nil {
+		t.Error("done item RefreshedAt touched, want it left frozen")
+	}
+	avail, err := st.GetAvailability(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("GetAvailability: %v", err)
+	}
+	if len(avail) != 0 {
+		t.Errorf("availability = %+v, want no rows written", avail)
+	}
+}
+
 func TestOverdueWhenNeverRun(t *testing.T) {
 	d, _ := newRefresherDeps(t, nil)
 	r := NewRefresher(d, time.Hour)

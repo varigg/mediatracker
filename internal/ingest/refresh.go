@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -15,6 +16,11 @@ const lastRefreshSettingKey = "last_refresh_at"
 // timeFormat matches the SQLite TEXT timestamp format the store uses
 // elsewhere (CURRENT_TIMESTAMP's default rendering).
 const timeFormat = "2006-01-02 15:04:05"
+
+// ErrItemNotActive is returned by RefreshItem when the target item is
+// not in an active state (want_to/in_progress). Done/abandoned items
+// are frozen and must never be touched by a refresh cycle.
+var ErrItemNotActive = errors.New("ingest: item is not in an active state")
 
 // Summary reports one refresh cycle's outcome for the per-cycle log
 // line. There's no separate "skipped" count: done/abandoned items are
@@ -135,6 +141,9 @@ func (r *Refresher) RefreshItem(ctx context.Context, itemID int64) error {
 	item, err := r.deps.Store.GetItem(ctx, itemID)
 	if err != nil {
 		return err
+	}
+	if item.State != store.StateWantTo && item.State != store.StateInProgress {
+		return ErrItemNotActive
 	}
 	r.refreshItem(ctx, item)
 	return nil
