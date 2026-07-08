@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -10,10 +11,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/varigg/mediatracker/internal/config"
+	"github.com/varigg/mediatracker/internal/ingest"
+	"github.com/varigg/mediatracker/internal/providers/setup"
 	"github.com/varigg/mediatracker/internal/server"
 	"github.com/varigg/mediatracker/internal/store"
 )
@@ -53,7 +57,8 @@ func run() error {
 	if err := level.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
 		return fmt.Errorf("invalid log_level %q: %w", cfg.LogLevel, err)
 	}
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	slog.SetDefault(logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -64,7 +69,26 @@ func run() error {
 	}
 	defer st.Close()
 
-	srv := &http.Server{Addr: cfg.ListenAddr, Handler: server.New(st)}
+	registry := setup.FromConfig(cfg.Providers, logger)
+	availability := setup.AvailabilityFromConfig(cfg.Providers, *dataDir, logger)
+	deps := ingest.Deps{
+		Store:        st,
+		Registry:     registry,
+		Availability: availability,
+		HTTPClient:   &http.Client{Timeout: 30 * time.Second},
+		DataDir:      *dataDir,
+		Logger:       logger,
+		Now:          time.Now,
+		ItemDelay:    time.Second,
+	}
+	refresher := ingest.NewRefresher(deps, cfg.RefreshInterval.Duration)
+	go refresher.Start(ctx)
+
+	mux := http.NewServeMux()
+	registerDebugRoutes(mux, deps, refresher)
+	mux.Handle("/", server.New(st))
+
+	srv := &http.Server{Addr: cfg.ListenAddr, Handler: mux}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	slog.Info("mediatracker started", "addr", cfg.ListenAddr, "data_dir", *dataDir)
@@ -78,4 +102,59 @@ func run() error {
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// registerDebugRoutes wires temporary, unauthenticated endpoints for
+// exercising the add/refresh pipelines before M6 builds the real HTTP
+// route surface. Delete this function and its call site once M6 lands.
+func registerDebugRoutes(mux *http.ServeMux, deps ingest.Deps, refresher *ingest.Refresher) {
+	mux.HandleFunc("GET /debug/search", func(w http.ResponseWriter, r *http.Request) {
+		mediaType := store.MediaType(r.URL.Query().Get("type"))
+		p, err := deps.Registry.Get(mediaType)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		candidates, err := p.Search(r.Context(), r.URL.Query().Get("q"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(candidates)
+	})
+
+	mux.HandleFunc("POST /debug/add", func(w http.ResponseWriter, r *http.Request) {
+		mediaType := store.MediaType(r.URL.Query().Get("type"))
+		item, err := ingest.Add(r.Context(), deps, mediaType, r.URL.Query().Get("provider_id"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(item)
+	})
+
+	mux.HandleFunc("POST /debug/refresh", func(w http.ResponseWriter, r *http.Request) {
+		sum, err := refresher.RunCycle(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sum)
+	})
+
+	mux.HandleFunc("POST /debug/refresh/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			http.Error(w, "invalid id", http.StatusBadRequest)
+			return
+		}
+		if err := refresher.RefreshItem(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
