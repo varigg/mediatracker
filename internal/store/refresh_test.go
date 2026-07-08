@@ -68,7 +68,7 @@ func TestNewlyAvailableFiltersBySubscribedAndFirstSeen(t *testing.T) {
 	if err := s.SetServiceSubscribed(ctx, "netflix", true); err != nil {
 		t.Fatalf("SetServiceSubscribed: %v", err)
 	}
-	cutoff := time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05")
+	cutoff := time.Now().UTC().Add(-time.Hour)
 
 	// item: newly seen on a subscribed service -> must appear.
 	if err := s.UpsertAvailability(ctx, item.ID, []Availability{{ServiceSlug: "netflix", Kind: "subscription"}}); err != nil {
@@ -98,7 +98,7 @@ func TestNewlyAvailableExcludesBeforeCutoff(t *testing.T) {
 	if err := s.UpsertAvailability(ctx, item.ID, []Availability{{ServiceSlug: "netflix", Kind: "subscription"}}); err != nil {
 		t.Fatalf("UpsertAvailability: %v", err)
 	}
-	future := time.Now().UTC().Add(time.Hour).Format("2006-01-02 15:04:05")
+	future := time.Now().UTC().Add(time.Hour)
 
 	got, err := s.NewlyAvailable(ctx, future)
 	if err != nil {

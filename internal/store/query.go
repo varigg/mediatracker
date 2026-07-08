@@ -93,15 +93,5 @@ func (s *Store) ListItems(ctx context.Context, v url.Values) ([]MediaItem, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var items []MediaItem
-	for rows.Next() {
-		it, err := scanItem(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, *it)
-	}
-	return items, rows.Err()
+	return scanItems(rows)
 }

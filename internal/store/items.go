@@ -48,6 +48,21 @@ func scanItem(r rowScanner) (*MediaItem, error) {
 	return &it, nil
 }
 
+// scanItems consumes rows produced by a query using selectItem's column
+// order, closing rows and returning the collected items.
+func scanItems(rows *sql.Rows) ([]MediaItem, error) {
+	defer rows.Close()
+	var items []MediaItem
+	for rows.Next() {
+		it, err := scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *it)
+	}
+	return items, rows.Err()
+}
+
 // CreateItem inserts a new item in state want_to. If (provider,
 // provider_id) already exists, the existing row is returned unmodified and
 // the bool is false — re-adding surfaces the existing item.
