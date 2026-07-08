@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -82,7 +83,12 @@ func run() error {
 		ItemDelay:    time.Second,
 	}
 	refresher := ingest.NewRefresher(deps, cfg.RefreshInterval.Duration)
-	go refresher.Start(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		refresher.Start(ctx)
+	}()
 
 	mux := http.NewServeMux()
 	registerDebugRoutes(mux, deps, refresher)
@@ -100,7 +106,9 @@ func run() error {
 		slog.Info("shutting down")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return srv.Shutdown(shutdownCtx)
+		err := srv.Shutdown(shutdownCtx)
+		wg.Wait()
+		return err
 	}
 }
 
