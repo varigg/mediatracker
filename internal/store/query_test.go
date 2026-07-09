@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -173,5 +174,15 @@ func TestListItemsSortDirection(t *testing.T) {
 	}
 	if got := titles(items); got[0] != "Delta" {
 		t.Fatalf("title desc: got %v, want Delta first", got)
+	}
+}
+
+func TestBuildListQueryNormalizesBogusDir(t *testing.T) {
+	// A hand-constructed filter bypassing ParseListFilter must not be
+	// able to inject into ORDER BY: bogus directions fall back to the
+	// sort's default.
+	q, _ := buildListQuery(ListFilter{Sort: "title", Dir: "evil; DROP TABLE"})
+	if !strings.Contains(q, "COLLATE NOCASE ASC") || strings.Contains(q, "evil") {
+		t.Errorf("bogus dir leaked into SQL: %q", q)
 	}
 }

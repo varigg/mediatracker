@@ -39,7 +39,7 @@ type ListFilter struct {
 // Params: state (lifecycle state) · type (media type, repeatable) · genre
 // (exact match against the genres JSON array) · available=1 (has a row on
 // a subscribed service, or is owned) · sort = added (default) | year |
-// rating | title. Unrecognized values wrap ErrInvalidQuery.
+// rating | title · dir = asc | desc (default per sort). Unrecognized values wrap ErrInvalidQuery.
 func ParseListFilter(v url.Values) (ListFilter, error) {
 	var f ListFilter
 
@@ -114,13 +114,17 @@ func buildListQuery(f ListFilter) (string, []any) {
 			WHERE a.item_id = mi.id AND (s.subscribed = 1 OR a.kind = 'owned'))`)
 	}
 
+	// Resolve the effective direction. Anything but asc/desc — including
+	// a hand-constructed ListFilter bypassing ParseListFilter — falls
+	// back to the sort's default, so arbitrary strings can never reach
+	// the SQL below.
+	def := "desc"
+	if f.Sort == "title" {
+		def = "asc"
+	}
 	dir := f.Dir
-	if dir == "" {
-		if f.Sort == "title" {
-			dir = "asc"
-		} else {
-			dir = "desc"
-		}
+	if dir != "asc" && dir != "desc" {
+		dir = def
 	}
 	up := strings.ToUpper(dir)
 	var orderBy string
