@@ -266,6 +266,7 @@ type TabData struct {
 	Label   string
 	Sub     string // "" | "movie" | "tv"
 	States  []StateTab
+	Genres  []string // distinct genres present for the current group/sub/state scope
 	Filter  store.ListFilter
 	Rows    []TabRow
 	Total   int
@@ -299,6 +300,11 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 			n += counts[mt][st]
 		}
 		states = append(states, StateTab{State: st, Label: stateNames[st], Count: n, Active: f.State == st})
+	}
+
+	genres, err := s.deps.Store.DistinctGenres(ctx, f.Types, f.State)
+	if err != nil {
+		return TabData{}, err
 	}
 
 	density, _, err := s.deps.Store.GetSetting(ctx, "row_density")
@@ -388,6 +394,7 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 		Label:   groupLabels[group],
 		Sub:     sub,
 		States:  states,
+		Genres:  genres,
 		Filter:  f,
 		Rows:    rows,
 		Total:   len(rows),

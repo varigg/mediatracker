@@ -192,6 +192,46 @@ func TestDefaultDir(t *testing.T) {
 	}
 }
 
+func TestDistinctGenres(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	seedListFixture(t, s)
+	// Alpha (movie, Drama, want_to), Bravo (tv, Comedy, want_to),
+	// Charlie (book, Drama, in_progress), Delta (game, no genre, want_to).
+
+	cases := []struct {
+		name  string
+		types []MediaType
+		state State
+		want  []string
+	}{
+		{"movie+tv types, no state filter", []MediaType{TypeMovie, TypeTV}, "",
+			[]string{"Comedy", "Drama"}},
+		{"want_to state, all types", nil, StateWantTo,
+			[]string{"Comedy", "Drama"}},
+		{"book type only", []MediaType{TypeBook}, "",
+			[]string{"Drama"}},
+		{"game type only: no genres present", []MediaType{TypeGame}, "",
+			nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := s.DistinctGenres(ctx, c.types, c.state)
+			if err != nil {
+				t.Fatalf("DistinctGenres: %v", err)
+			}
+			if len(got) != len(c.want) {
+				t.Fatalf("got %v, want %v", got, c.want)
+			}
+			for i := range got {
+				if got[i] != c.want[i] {
+					t.Fatalf("got %v, want %v", got, c.want)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildListQueryNormalizesBogusDir(t *testing.T) {
 	// A hand-constructed filter bypassing ParseListFilter must not be
 	// able to inject into ORDER BY: bogus directions fall back to the

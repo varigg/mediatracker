@@ -18,6 +18,16 @@
     <a class="{{if eq .Sub "tv"}}on{{end}}" hx-get="{{tabURL . (kv "type" "tv")}}" hx-target="#tab-body" hx-push-url="true" href="{{tabURL . (kv "type" "tv")}}">TV</a>
   </div>
   {{end}}
+  {{if .Genres}}
+  <div class="genresel">
+    <select name="genre" class="sel"
+      hx-get="{{tabURL . (kv "genre" "")}}" hx-include="this"
+      hx-target="#tab-body" hx-push-url="true">
+      <option value="">All genres</option>
+      {{range .Genres}}<option value="{{.}}"{{if eq . $.Filter.Genre}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+  </div>
+  {{end}}
   <div class="tool-right">
     <label class="avail"><input type="checkbox" {{if .Filter.Available}}checked{{end}}
       hx-get="{{if .Filter.Available}}{{tabURL . (kv "available" "")}}{{else}}{{tabURL . (kv "available" "1")}}{{end}}"

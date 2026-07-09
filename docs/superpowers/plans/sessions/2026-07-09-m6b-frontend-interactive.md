@@ -546,6 +546,25 @@ Commit: `refactor: remove debug routes, share sort defaults, preserve toolbar st
 
 ---
 
+### Task 5.5 (unplanned): Genre Filter
+
+A post-Task-5 review surfaced that spec §4's "genre filter from present
+genres" was never wired up: `ListFilter.Genre`, `ParseListFilter`'s
+`genre` param, and the SQL `EXISTS (SELECT 1 FROM json_each(...))`
+clause all existed and `tabURL` already round-tripped `genre` through
+every toolbar control, but there was no way to enumerate which genres
+were actually present for a given group/sub/state scope and no `<select>`
+in the toolbar to drive it. Closed with `store.DistinctGenres(ctx, types,
+state)` (a `DISTINCT ... FROM media_items, json_each(genres)` query
+sharing `buildListQuery`'s type/state WHERE construction), a `TabData.
+Genres []string` populated in `tabData`, and a toolbar `<select
+name="genre">` between the subtabs and the available-to-me checkbox that
+drives navigation via `hx-include="this"` against a `tabURL` override
+that strips `genre` from the base href — so the select's own value is
+the sole genre source while every other filter dimension survives.
+
+---
+
 ### Task 6: Integration Sweep & Boot Smoke
 
 1. CI parity: `gofmt -l . && go vet ./... && go build ./... && go test

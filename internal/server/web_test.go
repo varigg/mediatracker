@@ -165,6 +165,47 @@ func TestTabHTMXFragment(t *testing.T) {
 	}
 }
 
+func TestTabGenreFilter(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	ctx := context.Background()
+	// seedWeb's want_to movies-tv item is Dune: Part Two (Sci-Fi). Add a
+	// second want_to movie with a different genre so the tab has two
+	// distinct genres to pick from.
+	if _, _, err := st.CreateItem(ctx, store.NewItem{MediaType: store.TypeMovie, Title: "Paddington",
+		ReleaseYear: intp(2014), Genres: []string{"Comedy"}, Provider: "tmdb", ProviderID: "movie:3"}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, body := get(t, srv, "/movies-tv")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, needle := range []string{`name="genre"`, `>All genres<`, `>Sci-Fi<`, `>Comedy<`} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("toolbar missing %q", needle)
+		}
+	}
+
+	_, body = get(t, srv, "/movies-tv?genre=Comedy")
+	if !strings.Contains(body, "Paddington") {
+		t.Error("genre=Comedy must include Paddington")
+	}
+	if strings.Contains(body, "Dune: Part Two") {
+		t.Error("genre=Comedy must exclude Dune: Part Two")
+	}
+	if !strings.Contains(body, `<option value="Comedy" selected>`) {
+		t.Error("selected genre option must reflect the current filter")
+	}
+
+	// State links must carry the active genre so switching state doesn't
+	// silently drop the filter (tabURL's preservation, asserted at the
+	// rendered-body level rather than just the unit-tested helper).
+	if !strings.Contains(body, `genre=Comedy`) {
+		t.Error("rendered toolbar links must preserve ?genre= when active")
+	}
+}
+
 func TestTabDensityWhitelist(t *testing.T) {
 	srv, st, _ := newTestServer(t)
 	seedWeb(t, st)

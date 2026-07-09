@@ -83,8 +83,9 @@ nav.tabs .n{font-size:11px;color:var(--muted)}
 .searchbox input{width:220px;padding:5px 10px 5px 28px;border:1px solid var(--hair);
   border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
 .searchbox .glyph{position:absolute;left:9px;top:6px;color:var(--muted)}
-#qtype{border:1px solid var(--hair);border-radius:6px;background:var(--bg);color:var(--ink);
-  font:inherit;font-size:12px;padding:5px 6px;margin-right:6px}
+.sel{border:1px solid var(--hair);border-radius:6px;background:var(--bg);color:var(--ink);
+  font:inherit;font-size:12px;padding:5px 6px}
+#qtype{margin-right:6px}
 .search-pop{position:absolute;top:36px;right:0;width:330px;background:var(--surface);
   border:1px solid var(--hair);border-radius:8px;box-shadow:var(--shadow);padding:5px;display:none;
   max-height:60vh;overflow-y:auto}

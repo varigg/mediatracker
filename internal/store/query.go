@@ -157,6 +157,56 @@ func buildListQuery(f ListFilter) (string, []any) {
 	return q, args
 }
 
+// DistinctGenres returns the distinct genre values present across
+// media_items matching the given types and state, ordered
+// case-insensitively. An empty types slice means "all types"; state ""
+// means "no state filter." It mirrors buildListQuery's type/state WHERE
+// construction so the toolbar's genre <select> only ever offers values
+// actually present in the current group/sub/state scope.
+func (s *Store) DistinctGenres(ctx context.Context, types []MediaType, state State) ([]string, error) {
+	var where []string
+	var args []any
+
+	if state != "" {
+		where = append(where, "mi.state = ?")
+		args = append(args, string(state))
+	}
+
+	if len(types) > 0 {
+		placeholders := make([]string, len(types))
+		for i, t := range types {
+			placeholders[i] = "?"
+			args = append(args, string(t))
+		}
+		where = append(where, fmt.Sprintf("mi.media_type IN (%s)", strings.Join(placeholders, ", ")))
+	}
+
+	q := `SELECT DISTINCT je.value FROM media_items mi, json_each(mi.genres) je`
+	if len(where) > 0 {
+		q += " WHERE " + strings.Join(where, " AND ")
+	}
+	q += " ORDER BY je.value COLLATE NOCASE"
+
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: distinct genres: %w", err)
+	}
+	defer rows.Close()
+
+	var genres []string
+	for rows.Next() {
+		var g string
+		if err := rows.Scan(&g); err != nil {
+			return nil, fmt.Errorf("store: distinct genres: %w", err)
+		}
+		genres = append(genres, g)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: distinct genres: %w", err)
+	}
+	return genres, nil
+}
+
 // ListItems runs a query for the given filter.
 func (s *Store) ListItems(ctx context.Context, f ListFilter) ([]MediaItem, error) {
 	q, args := buildListQuery(f)
