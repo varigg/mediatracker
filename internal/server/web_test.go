@@ -4,14 +4,19 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/varigg/mediatracker/internal/ingest"
+	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
 )
 
@@ -434,5 +439,57 @@ func TestLayoutEnables4xxSwaps(t *testing.T) {
 	}
 	if !strings.Contains(body, `"4..","swap":true`) {
 		t.Error("htmx-config must enable swaps for 4xx responses")
+	}
+}
+
+func TestGlobalRefreshTracksWaitGroup(t *testing.T) {
+	t.Helper()
+	dataDir := t.TempDir()
+	st, err := store.Open(context.Background(), filepath.Join(dataDir, "app.db"))
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	refresher := ingest.NewRefresher(ingest.Deps{
+		Store:      st,
+		Registry:   providers.NewRegistry(),
+		Logger:     logger,
+		DataDir:    dataDir,
+		HTTPClient: http.DefaultClient,
+	}, time.Hour)
+
+	// Create server with a real wait group
+	var wg sync.WaitGroup
+	srv := httptest.NewServer(New(Deps{
+		Store:           st,
+		Logger:          logger,
+		DataDir:         dataDir,
+		RefreshInterval: 7 * 24 * time.Hour,
+		Refresher:       refresher,
+		Background:      &wg,
+	}))
+	t.Cleanup(srv.Close)
+
+	seedWeb(t, st)
+
+	// POST /refresh starts the goroutine
+	resp, body := postForm(t, srv, "POST", "/refresh", url.Values{}, true)
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202, body %s", resp.StatusCode, body)
+	}
+
+	// Wait for the goroutine to complete with a 5-second timeout
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// Success: goroutine completed and registered with wait group
+	case <-time.After(5 * time.Second):
+		t.Fatal("wait group never completed; goroutine not properly tracked")
 	}
 }

@@ -19,6 +19,7 @@ type Deps struct {
 	DataDir         string        // covers are served from {DataDir}/covers
 	RefreshInterval time.Duration // bounds the "newly available" window
 	Refresher       *ingest.Refresher
+	Background      *sync.WaitGroup // tracks request-spawned background work (the manual global refresh) so main can drain it before closing the store; nil is allowed (tests) and means untracked
 }
 
 func New(d Deps) http.Handler {

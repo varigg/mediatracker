@@ -298,6 +298,7 @@ func (s *site) refreshAll(w http.ResponseWriter, r *http.Request) {
 	s.refreshMu.Lock()
 	if s.refreshing {
 		s.refreshMu.Unlock()
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte("<span>Refresh already running</span>"))
 		return
@@ -305,8 +306,14 @@ func (s *site) refreshAll(w http.ResponseWriter, r *http.Request) {
 	s.refreshing = true
 	s.refreshMu.Unlock()
 
+	if s.deps.Background != nil {
+		s.deps.Background.Add(1)
+	}
 	go func() {
 		defer func() {
+			if s.deps.Background != nil {
+				defer s.deps.Background.Done()
+			}
 			s.refreshMu.Lock()
 			s.refreshing = false
 			s.refreshMu.Unlock()

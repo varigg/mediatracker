@@ -89,6 +89,9 @@ func run() error {
 		defer wg.Done()
 		refresher.Start(ctx)
 	}()
+	// Drain both the periodic refresher and request-spawned background work
+	// (manual global refreshes) before closing the store, so they finish
+	// cleanly before the database shuts down.
 	defer wg.Wait()
 
 	mux := http.NewServeMux()
@@ -99,6 +102,7 @@ func run() error {
 		DataDir:         *dataDir,
 		RefreshInterval: cfg.RefreshInterval.Duration,
 		Refresher:       refresher,
+		Background:      &wg,
 	}))
 
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: mux}
