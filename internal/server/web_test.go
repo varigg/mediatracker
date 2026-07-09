@@ -703,6 +703,121 @@ func TestDetailRendersFlashBanner(t *testing.T) {
 	}
 }
 
+func TestSettingsRenders(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	resp, body := get(t, srv, "/settings")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, needle := range []string{
+		"Netflix",        // seeded service
+		"not configured", // no keys in test Deps
+		"Refresh now",
+		`value="l" checked`,
+	} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("settings missing %q, got %s", needle, body)
+		}
+	}
+}
+
+func TestSettingsToggleAffectsAvailability(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st) // seedWeb already subscribes netflix
+	ctx := context.Background()
+
+	svcs, err := st.ListServices(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var netflixSubscribed bool
+	for _, sv := range svcs {
+		if sv.Slug == "netflix" {
+			netflixSubscribed = sv.Subscribed
+		}
+	}
+	if !netflixSubscribed {
+		t.Fatal("precondition: netflix must start subscribed per seedWeb")
+	}
+
+	// Toggle OFF via the HTTP endpoint.
+	resp, body := postForm(t, srv, "POST", "/settings/services", url.Values{"slug": {"netflix"}}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("toggle off: status = %d, body %s", resp.StatusCode, body)
+	}
+	_, body = get(t, srv, "/movies-tv?available=1")
+	if strings.Contains(body, "Dune: Part Two") {
+		t.Error("unsubscribed netflix must exclude Dune: Part Two from available-to-me")
+	}
+
+	// Toggle back ON via the HTTP endpoint.
+	resp, body = postForm(t, srv, "POST", "/settings/services", url.Values{"slug": {"netflix"}}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("toggle on: status = %d, body %s", resp.StatusCode, body)
+	}
+	_, body = get(t, srv, "/movies-tv?available=1")
+	if !strings.Contains(body, "Dune: Part Two") {
+		t.Error("resubscribed netflix must include Dune: Part Two in available-to-me")
+	}
+}
+
+func TestSettingsDensityPersists(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+
+	resp, body := postForm(t, srv, "POST", "/settings/density", url.Values{"density": {"m"}}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %s", resp.StatusCode, body)
+	}
+	_, body = get(t, srv, "/games")
+	if !strings.Contains(body, "density-m") {
+		t.Error("games tab must honor persisted density-m")
+	}
+
+	resp, _ = postForm(t, srv, "POST", "/settings/density", url.Values{"density": {"huge"}}, true)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("bad density: status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestSettingsUnknownSlug404(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	resp, _ := postForm(t, srv, "POST", "/settings/services", url.Values{"slug": {"nope"}}, true)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestSettingsProviderStatus(t *testing.T) {
+	dataDir := t.TempDir()
+	st, err := store.Open(context.Background(), filepath.Join(dataDir, "app.db"))
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	srv := httptest.NewServer(New(Deps{
+		Store:     st,
+		Logger:    logger,
+		DataDir:   dataDir,
+		Providers: ProviderStatus{TMDB: true},
+	}))
+	t.Cleanup(srv.Close)
+
+	resp, body := get(t, srv, "/settings")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "configured") {
+		t.Error("settings missing a configured chip for TMDB")
+	}
+	if !strings.Contains(body, "not configured") {
+		t.Error("settings missing not-configured rows for the other four providers")
+	}
+}
+
 func TestAddNonHTMXRedirects303(t *testing.T) {
 	reg := providers.NewRegistry()
 	reg.Register(store.TypeMovie, stubSearchProvider{details: &providers.ItemDetails{

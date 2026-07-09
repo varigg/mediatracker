@@ -94,6 +94,17 @@ func run() error {
 	// cleanly before the database shuts down.
 	defer wg.Wait()
 
+	// Providers reports configured-ness only (booleans) for the Settings
+	// page — raw keys never leave config/main. Mirrors
+	// internal/providers/setup's registration conditions.
+	providerStatus := server.ProviderStatus{
+		TMDB:      cfg.Providers.TMDBKey != "",
+		OMDB:      cfg.Providers.OMDBKey != "",
+		IGDB:      cfg.Providers.IGDBClientID != "" && cfg.Providers.IGDBClientSecret != "",
+		Hardcover: cfg.Providers.HardcoverKey != "",
+		Steam:     cfg.Providers.SteamKey != "" && cfg.Providers.SteamID != "",
+	}
+
 	mux := http.NewServeMux()
 	registerDebugRoutes(mux, deps, refresher)
 	mux.Handle("/", server.New(server.Deps{
@@ -104,6 +115,7 @@ func run() error {
 		Refresher:       refresher,
 		Background:      &wg,
 		Ingest:          deps,
+		Providers:       providerStatus,
 	}))
 
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: mux}

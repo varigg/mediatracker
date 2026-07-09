@@ -18,6 +18,7 @@
     <a href="/books" class="{{if eq .Nav.Active "books"}}on{{end}}"><span class="tdot book"></span>Books <span class="n mono">{{index .Nav.Counts "books"}}</span></a>
     <a href="/games" class="{{if eq .Nav.Active "games"}}on{{end}}"><span class="tdot game"></span>Games <span class="n mono">{{index .Nav.Counts "games"}}</span></a>
   </nav>
+  <a class="setlink {{if eq .Nav.Active "settings"}}on{{end}}" href="/settings">Settings</a>
   <div class="searchbox">
     <span class="glyph">⌕</span>
     <select id="qtype" name="type">

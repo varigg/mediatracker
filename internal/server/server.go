@@ -12,6 +12,14 @@ import (
 	"github.com/varigg/mediatracker/internal/store"
 )
 
+// ProviderStatus reports which metadata providers have configured keys —
+// booleans only, so raw keys never reach the HTTP layer. main builds this
+// from cfg.Providers, mirroring internal/providers/setup's registration
+// conditions.
+type ProviderStatus struct {
+	TMDB, OMDB, IGDB, Hardcover, Steam bool
+}
+
 // Deps wires everything the HTTP layer needs.
 type Deps struct {
 	Store           *store.Store
@@ -21,6 +29,7 @@ type Deps struct {
 	Refresher       *ingest.Refresher
 	Background      *sync.WaitGroup // tracks request-spawned background work (the manual global refresh) so main can drain it before closing the store; nil is allowed (tests) and means untracked
 	Ingest          ingest.Deps     // the add-flow: registry lookups (Ingest.Registry) and Ingest.Add
+	Providers       ProviderStatus  // which metadata providers have configured keys, for the Settings page
 }
 
 func New(d Deps) http.Handler {
@@ -41,6 +50,9 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /items/{id}/notes/preview", s.previewNotes)
 	mux.HandleFunc("POST /items/{id}/refresh", s.refreshItem)
 	mux.HandleFunc("POST /refresh", s.refreshAll)
+	mux.HandleFunc("GET /settings", s.settings)
+	mux.HandleFunc("POST /settings/services", s.toggleService)
+	mux.HandleFunc("POST /settings/density", s.setDensity)
 	mux.HandleFunc("GET /covers/{name}", s.cover)
 	mux.HandleFunc("GET /search", s.search)
 	mux.HandleFunc("POST /items", s.addItem)

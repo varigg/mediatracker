@@ -448,6 +448,86 @@ func (s *site) addItem(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
+// settings handles GET /settings: the full Settings page (services,
+// providers, display density, refresh).
+func (s *site) settings(w http.ResponseWriter, r *http.Request) {
+	data, err := s.settingsData(r)
+	if err != nil {
+		s.fail(w, "settings: model", err)
+		return
+	}
+	if err := s.views.render(w, "settings.html", data); err != nil {
+		s.deps.Logger.Error("render settings", "error", err)
+	}
+}
+
+// respondSettings re-renders the settings-body fragment (HTMX) or 303s
+// back to /settings (plain form post) after a successful mutation —
+// mirrors respondDetail.
+func (s *site) respondSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("HX-Request") != "true" {
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
+	data, err := s.settingsData(r)
+	if err != nil {
+		s.fail(w, "settings refresh", err)
+		return
+	}
+	if err := s.views.renderBlock(w, "settings.html", "settings-body", data); err != nil {
+		s.deps.Logger.Error("render settings fragment", "error", err)
+	}
+}
+
+// toggleService handles POST /settings/services (form: slug=): flips the
+// named service's subscribed flag. Unknown slug -> 404.
+func (s *site) toggleService(w http.ResponseWriter, r *http.Request) {
+	slug := r.FormValue("slug")
+	services, err := s.deps.Store.ListServices(r.Context())
+	if err != nil {
+		s.fail(w, "toggle service: list", err)
+		return
+	}
+	var current bool
+	found := false
+	for _, sv := range services {
+		if sv.Slug == slug {
+			current = sv.Subscribed
+			found = true
+			break
+		}
+	}
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.deps.Store.SetServiceSubscribed(r.Context(), slug, !current); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		s.fail(w, "toggle service", err)
+		return
+	}
+	s.respondSettings(w, r)
+}
+
+// setDensity handles POST /settings/density (form: density=s|m|l).
+func (s *site) setDensity(w http.ResponseWriter, r *http.Request) {
+	d := r.FormValue("density")
+	switch d {
+	case "s", "m", "l":
+	default:
+		s.badRequest(w, r, "unknown density: "+d)
+		return
+	}
+	if err := s.deps.Store.SetSetting(r.Context(), "row_density", d); err != nil {
+		s.fail(w, "set density", err)
+		return
+	}
+	s.respondSettings(w, r)
+}
+
 // coverName is the only shape covers/ serves: "{item id}.jpg", checked
 // before the filesystem is touched (also blocks path traversal).
 var coverName = regexp.MustCompile(`^[0-9]+\.jpg$`)

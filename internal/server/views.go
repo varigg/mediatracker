@@ -41,7 +41,7 @@ var tmplFuncs = template.FuncMap{
 
 func newViews() *views {
 	pages := map[string]*template.Template{}
-	for _, page := range []string{"home.html", "tab.html", "detail.html"} {
+	for _, page := range []string{"home.html", "tab.html", "detail.html", "settings.html"} {
 		t := template.Must(template.New("layout.html").Funcs(tmplFuncs).ParseFS(templatesFS,
 			"templates/layout.html", "templates/partials.html", "templates/"+page))
 		pages[page] = t

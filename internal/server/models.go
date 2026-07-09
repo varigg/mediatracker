@@ -390,6 +390,117 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 	}, nil
 }
 
+// ServiceRow is one toggleable row of the Settings services checklist.
+type ServiceRow struct {
+	Slug       string
+	Name       string
+	Subscribed bool
+}
+
+// ServiceGroup is one media-kind-grouped section of the services
+// checklist (video/game/book, matching store.Service.MediaKind).
+type ServiceGroup struct {
+	Label    string
+	DotClass string
+	Services []ServiceRow
+}
+
+// ProviderRow is one metadata-provider status row (configured or not).
+type ProviderRow struct {
+	Label      string
+	Configured bool
+}
+
+// SettingsData is the settings.html "settings-body" fragment's view model.
+type SettingsData struct {
+	Nav           Nav
+	ServiceGroups []ServiceGroup
+	Providers     []ProviderRow
+	Density       string
+	LastRefresh   string // "never" fallback
+}
+
+// mediaKindLabel maps a store.Service.MediaKind value to the same group
+// label used elsewhere (groupLabels keys by URL group, not media kind).
+var mediaKindLabel = map[string]string{
+	"video": groupLabels["movies-tv"],
+	"book":  groupLabels["books"],
+	"game":  groupLabels["games"],
+}
+
+// serviceGroups buckets services by media kind in a fixed video/game/book
+// order — the Settings page's own grouping, distinct from the
+// movies-tv/books/games order used by the tabs.
+func serviceGroups(services []store.Service) []ServiceGroup {
+	byKind := map[string][]ServiceRow{}
+	for _, sv := range services {
+		byKind[sv.MediaKind] = append(byKind[sv.MediaKind], ServiceRow{
+			Slug: sv.Slug, Name: sv.Name, Subscribed: sv.Subscribed,
+		})
+	}
+	var out []ServiceGroup
+	for _, kind := range []string{"video", "game", "book"} {
+		if rows := byKind[kind]; len(rows) > 0 {
+			out = append(out, ServiceGroup{Label: mediaKindLabel[kind], DotClass: kind, Services: rows})
+		}
+	}
+	return out
+}
+
+// settingsData builds the settings.html view model: services grouped by
+// media kind, static provider-configured status from Deps.Providers,
+// whitelisted row density, and the last-refresh timestamp ("never" when
+// unset).
+func (s *site) settingsData(r *http.Request) (SettingsData, error) {
+	ctx := r.Context()
+
+	nav, err := s.nav(r, "settings")
+	if err != nil {
+		return SettingsData{}, err
+	}
+
+	services, err := s.deps.Store.ListServices(ctx)
+	if err != nil {
+		return SettingsData{}, err
+	}
+
+	density, _, err := s.deps.Store.GetSetting(ctx, "row_density")
+	if err != nil {
+		return SettingsData{}, err
+	}
+	switch density {
+	case "s", "m", "l":
+		// Valid
+	default:
+		density = "l"
+	}
+
+	lastRefresh, ok, err := s.deps.Store.GetSetting(ctx, "last_refresh_at")
+	if err != nil {
+		return SettingsData{}, err
+	}
+	if !ok || lastRefresh == "" {
+		lastRefresh = "never"
+	}
+
+	p := s.deps.Providers
+	providers := []ProviderRow{
+		{Label: "TMDB", Configured: p.TMDB},
+		{Label: "OMDb", Configured: p.OMDB},
+		{Label: "IGDB", Configured: p.IGDB},
+		{Label: "Hardcover", Configured: p.Hardcover},
+		{Label: "Steam", Configured: p.Steam},
+	}
+
+	return SettingsData{
+		Nav:           nav,
+		ServiceGroups: serviceGroups(services),
+		Providers:     providers,
+		Density:       density,
+		LastRefresh:   lastRefresh,
+	}, nil
+}
+
 // verbFor names the "where to ___" verb per group (spec's mock: watch |
 // read | play).
 var verbFor = map[string]string{
