@@ -1,0 +1,26 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mediatracker</title>
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/htmx.min.js" defer></script>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <a class="wordmark" href="/">media<b>tracker</b></a>
+  <nav class="tabs">
+    <a href="/" class="{{if eq .Nav.Active ""}}on{{end}}">Home</a>
+    <a href="/movies-tv" class="{{if eq .Nav.Active "movies-tv"}}on{{end}}"><span class="tdot video"></span>Movies &amp; TV <span class="n mono">{{index .Nav.Counts "movies-tv"}}</span></a>
+    <a href="/books" class="{{if eq .Nav.Active "books"}}on{{end}}"><span class="tdot book"></span>Books <span class="n mono">{{index .Nav.Counts "books"}}</span></a>
+    <a href="/games" class="{{if eq .Nav.Active "games"}}on{{end}}"><span class="tdot game"></span>Games <span class="n mono">{{index .Nav.Counts "games"}}</span></a>
+  </nav>
+  <div class="searchbox">
+    <span class="glyph">⌕</span>
+    <input placeholder="Add a movie, book, game…" disabled title="Add flow arrives in the next milestone">
+  </div>
+</div></header>
+<main class="wrap">{{block "content" .}}{{end}}</main>
+</body>
+</html>{{end}}

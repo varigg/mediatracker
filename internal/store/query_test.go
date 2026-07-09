@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -137,5 +138,51 @@ func TestParseListFilterRejectsInvalidParams(t *testing.T) {
 		} else if !errors.Is(err, ErrInvalidQuery) {
 			t.Errorf("ParseListFilter(%v): err = %v, want errors.Is(err, ErrInvalidQuery)", v, err)
 		}
+	}
+}
+
+func TestParseListFilterDir(t *testing.T) {
+	f, err := ParseListFilter(url.Values{"sort": {"year"}, "dir": {"asc"}})
+	if err != nil || f.Dir != "asc" {
+		t.Fatalf("ParseListFilter dir=asc = (%+v, %v)", f, err)
+	}
+	if _, err := ParseListFilter(url.Values{"dir": {"sideways"}}); !errors.Is(err, ErrInvalidQuery) {
+		t.Errorf("invalid dir: err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestListItemsSortDirection(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	seedListFixture(t, s)
+
+	items, err := s.ListItems(ctx, ListFilter{Sort: "year", Dir: "asc"})
+	if err != nil {
+		t.Fatalf("ListItems: %v", err)
+	}
+	got := titles(items)
+	want := []string{"Bravo", "Alpha", "Charlie", "Delta"} // 1999,2001,2010,2020
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("year asc: got %v, want %v", got, want)
+		}
+	}
+
+	items, err = s.ListItems(ctx, ListFilter{Sort: "title", Dir: "desc"})
+	if err != nil {
+		t.Fatalf("ListItems: %v", err)
+	}
+	if got := titles(items); got[0] != "Delta" {
+		t.Fatalf("title desc: got %v, want Delta first", got)
+	}
+}
+
+func TestBuildListQueryNormalizesBogusDir(t *testing.T) {
+	// A hand-constructed filter bypassing ParseListFilter must not be
+	// able to inject into ORDER BY: bogus directions fall back to the
+	// sort's default.
+	q, _ := buildListQuery(ListFilter{Sort: "title", Dir: "evil; DROP TABLE"})
+	if !strings.Contains(q, "COLLATE NOCASE ASC") || strings.Contains(q, "evil") {
+		t.Errorf("bogus dir leaked into SQL: %q", q)
 	}
 }

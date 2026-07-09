@@ -31,6 +31,7 @@ type ListFilter struct {
 	Genre     string
 	Available bool
 	Sort      string // "" | "added" | "year" | "rating" | "title"
+	Dir       string // "" | "asc" | "desc"; "" uses the sort's default direction
 }
 
 // ParseListFilter translates URL query parameters into a ListFilter.
@@ -38,7 +39,7 @@ type ListFilter struct {
 // Params: state (lifecycle state) · type (media type, repeatable) · genre
 // (exact match against the genres JSON array) · available=1 (has a row on
 // a subscribed service, or is owned) · sort = added (default) | year |
-// rating | title. Unrecognized values wrap ErrInvalidQuery.
+// rating | title · dir = asc | desc (default per sort). Unrecognized values wrap ErrInvalidQuery.
 func ParseListFilter(v url.Values) (ListFilter, error) {
 	var f ListFilter
 
@@ -71,6 +72,13 @@ func ParseListFilter(v url.Values) (ListFilter, error) {
 		f.Sort = sort
 	default:
 		return ListFilter{}, fmt.Errorf("%w: invalid sort %q", ErrInvalidQuery, sort)
+	}
+
+	switch dir := v.Get("dir"); dir {
+	case "", "asc", "desc":
+		f.Dir = dir
+	default:
+		return ListFilter{}, fmt.Errorf("%w: invalid dir %q", ErrInvalidQuery, dir)
 	}
 
 	return f, nil
@@ -106,16 +114,29 @@ func buildListQuery(f ListFilter) (string, []any) {
 			WHERE a.item_id = mi.id AND (s.subscribed = 1 OR a.kind = 'owned'))`)
 	}
 
+	// Resolve the effective direction. Anything but asc/desc — including
+	// a hand-constructed ListFilter bypassing ParseListFilter — falls
+	// back to the sort's default, so arbitrary strings can never reach
+	// the SQL below.
+	def := "desc"
+	if f.Sort == "title" {
+		def = "asc"
+	}
+	dir := f.Dir
+	if dir != "asc" && dir != "desc" {
+		dir = def
+	}
+	up := strings.ToUpper(dir)
 	var orderBy string
 	switch f.Sort {
 	case "", "added":
-		orderBy = "mi.added_at DESC, mi.id DESC"
+		orderBy = "mi.added_at " + up + ", mi.id " + up
 	case "year":
-		orderBy = "mi.release_year DESC NULLS LAST, mi.title COLLATE NOCASE ASC"
+		orderBy = "mi.release_year " + up + " NULLS LAST, mi.title COLLATE NOCASE ASC"
 	case "rating":
-		orderBy = "r.avg_score DESC NULLS LAST, mi.title COLLATE NOCASE ASC"
+		orderBy = "r.avg_score " + up + " NULLS LAST, mi.title COLLATE NOCASE ASC"
 	case "title":
-		orderBy = "mi.title COLLATE NOCASE ASC"
+		orderBy = "mi.title COLLATE NOCASE " + up
 	}
 
 	q := selectItemList

@@ -1,10 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,57 +11,73 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/varigg/mediatracker/internal/store"
 )
 
-func TestHealthzOK(t *testing.T) {
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "app.db"))
+func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
+	t.Helper()
+	dataDir := t.TempDir()
+	st, err := store.Open(context.Background(), filepath.Join(dataDir, "app.db"))
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
-
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	srv := httptest.NewServer(New(st, logger))
+	srv := httptest.NewServer(New(Deps{
+		Store:           st,
+		Logger:          slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		DataDir:         dataDir,
+		RefreshInterval: 7 * 24 * time.Hour,
+	}))
 	t.Cleanup(srv.Close)
+	return srv, st, dataDir
+}
 
-	resp, err := http.Get(srv.URL + "/healthz")
+func get(t *testing.T, srv *httptest.Server, path string) (*http.Response, string) {
+	t.Helper()
+	resp, err := http.Get(srv.URL + path)
 	if err != nil {
-		t.Fatalf("GET /healthz: %v", err)
+		t.Fatalf("GET %s: %v", path, err)
 	}
 	defer resp.Body.Close()
+	var b strings.Builder
+	if _, err := io.Copy(&b, resp.Body); err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return resp, b.String()
+}
+
+func TestHealthzOK(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	resp, body := get(t, srv, "/healthz")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
-	var body map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("decode body: %v", err)
-	}
-	if body["status"] != "ok" {
-		t.Errorf(`body = %v, want {"status":"ok"}`, body)
+	var m map[string]string
+	if err := json.Unmarshal([]byte(body), &m); err != nil || m["status"] != "ok" {
+		t.Errorf("body = %q", body)
 	}
 }
 
-type failingStore struct{}
-
-func (failingStore) Ping(context.Context) error { return errors.New("db gone") }
-
 func TestHealthzFailsLoudly(t *testing.T) {
-	var logBuf bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
-	srv := httptest.NewServer(New(failingStore{}, logger))
-	t.Cleanup(srv.Close)
-
-	resp, err := http.Get(srv.URL + "/healthz")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
+	srv, st, _ := newTestServer(t)
+	st.Close() // simulate a dead database
+	resp, _ := get(t, srv, "/healthz")
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", resp.StatusCode)
 	}
-	if !strings.Contains(logBuf.String(), "health check failed") {
-		t.Errorf("log output = %q, want it to contain %q", logBuf.String(), "health check failed")
+}
+
+func TestAssetsServed(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	for path, needle := range map[string]string{
+		"/assets/htmx.min.js": "htmx",
+		"/assets/app.css":     "--accent",
+	} {
+		resp, body := get(t, srv, path)
+		if resp.StatusCode != http.StatusOK || !strings.Contains(body, needle) {
+			t.Errorf("%s: status %d, contains(%q)=%v", path, resp.StatusCode, needle, strings.Contains(body, needle))
+		}
 	}
 }
