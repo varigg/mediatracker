@@ -1,8 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -491,5 +495,197 @@ func TestGlobalRefreshTracksWaitGroup(t *testing.T) {
 		// Success: goroutine completed and registered with wait group
 	case <-time.After(5 * time.Second):
 		t.Fatal("wait group never completed; goroutine not properly tracked")
+	}
+}
+
+// fakeJPEGForTest returns a tiny valid JPEG for tests that exercise the
+// cover-download path without hitting a real image host (copied from
+// M4's internal/ingest/testutil_test.go helper).
+func fakeJPEGForTest(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 20, 20))
+	for y := 0; y < 20; y++ {
+		for x := 0; x < 20; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x * 10), G: uint8(y * 10), B: 100, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatalf("encode fixture jpeg: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// stubSearchProvider is a MetadataProvider double for the add-flow
+// handlers: Search returns a fixed candidate list (or an error),
+// Hydrate returns fixed details (or an error).
+type stubSearchProvider struct {
+	candidates []providers.Candidate
+	searchErr  error
+	details    *providers.ItemDetails
+	hydrateErr error
+}
+
+func (s stubSearchProvider) Search(ctx context.Context, query string) ([]providers.Candidate, error) {
+	if s.searchErr != nil {
+		return nil, s.searchErr
+	}
+	return s.candidates, nil
+}
+
+func (s stubSearchProvider) Hydrate(ctx context.Context, providerID string) (*providers.ItemDetails, error) {
+	if s.hydrateErr != nil {
+		return nil, s.hydrateErr
+	}
+	return s.details, nil
+}
+
+func TestSearchRendersCandidates(t *testing.T) {
+	reg := providers.NewRegistry()
+	reg.Register(store.TypeMovie, stubSearchProvider{candidates: []providers.Candidate{
+		{Provider: "tmdb", ProviderID: "1", MediaType: store.TypeMovie, Title: "Heat", Year: intp(1995)},
+		{Provider: "tmdb", ProviderID: "2", MediaType: store.TypeMovie, Title: "Heat Wave", Year: intp(2001)},
+	}})
+	srv, _, _ := newTestServerWithIngest(t, reg)
+	resp, body := get(t, srv, "/search?type=movie&q=heat")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %s", resp.StatusCode, body)
+	}
+	for _, needle := range []string{"Heat", "Heat Wave", `hx-post="/items"`} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("search body missing %q, got %s", needle, body)
+		}
+	}
+}
+
+func TestSearchUnconfiguredProvider(t *testing.T) {
+	srv, _, _ := newTestServerWithIngest(t, providers.NewRegistry())
+	resp, body := get(t, srv, "/search?type=game&q=x")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, "No provider configured") {
+		t.Errorf("body = %q, want the not-configured hint", body)
+	}
+}
+
+func TestSearchBadType(t *testing.T) {
+	srv, _, _ := newTestServerWithIngest(t, providers.NewRegistry())
+	resp, _ := get(t, srv, "/search?type=podcast&q=x")
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+	resp, body := get(t, srv, "/search?type=movie&q=")
+	if resp.StatusCode != http.StatusOK || strings.TrimSpace(body) != "" {
+		t.Errorf("empty q: status = %d, body = %q, want 200 and empty", resp.StatusCode, body)
+	}
+}
+
+func TestAddCreatesAndRedirects(t *testing.T) {
+	imgData := fakeJPEGForTest(t)
+	imgSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(imgData)
+	}))
+	defer imgSrv.Close()
+	coverURL := imgSrv.URL + "/poster.jpg"
+
+	reg := providers.NewRegistry()
+	reg.Register(store.TypeMovie, stubSearchProvider{details: &providers.ItemDetails{
+		MediaType: store.TypeMovie, Title: "Heat", ReleaseYear: intp(1995),
+		Genres: []string{"Crime"}, CoverURL: &coverURL, Provider: "tmdb", ProviderID: "949",
+		Ratings: []providers.Rating{{Source: "imdb", Score: 82, Display: "8.2/10"}},
+	}})
+	srv, st, dataDir := newTestServerWithIngest(t, reg)
+
+	resp, body := postForm(t, srv, "POST", "/items",
+		url.Values{"type": {"movie"}, "provider_id": {"949"}}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %s", resp.StatusCode, body)
+	}
+	redirect := resp.Header.Get("HX-Redirect")
+	if !strings.HasSuffix(redirect, "?flash=added") || !strings.Contains(redirect, "/items/") {
+		t.Fatalf("HX-Redirect = %q, want /items/{id}?flash=added", redirect)
+	}
+
+	idStr := strings.TrimSuffix(strings.TrimPrefix(redirect, "/items/"), "?flash=added")
+	items, err := st.ListItems(context.Background(), store.ListFilter{})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("ListItems = %+v, err %v, want one persisted item", items, err)
+	}
+	if fmt.Sprint(items[0].ID) != idStr {
+		t.Errorf("redirect id = %q, want %d", idStr, items[0].ID)
+	}
+	ratings, err := st.GetRatings(context.Background(), items[0].ID)
+	if err != nil || len(ratings) != 1 {
+		t.Fatalf("ratings = %+v, err %v, want one persisted rating", ratings, err)
+	}
+	if items[0].CoverPath == nil {
+		t.Fatal("CoverPath is nil, want a saved cover path")
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, *items[0].CoverPath)); err != nil {
+		t.Errorf("cover file missing on disk: %v", err)
+	}
+}
+
+func TestAddDuplicateFlash(t *testing.T) {
+	reg := providers.NewRegistry()
+	reg.Register(store.TypeMovie, stubSearchProvider{details: &providers.ItemDetails{
+		MediaType: store.TypeMovie, Title: "Heat", ReleaseYear: intp(1995),
+		Provider: "tmdb", ProviderID: "949",
+	}})
+	srv, _, _ := newTestServerWithIngest(t, reg)
+
+	first, _ := postForm(t, srv, "POST", "/items", url.Values{"type": {"movie"}, "provider_id": {"949"}}, true)
+	if first.StatusCode != http.StatusOK {
+		t.Fatalf("first add: status = %d", first.StatusCode)
+	}
+	second, _ := postForm(t, srv, "POST", "/items", url.Values{"type": {"movie"}, "provider_id": {"949"}}, true)
+	if second.StatusCode != http.StatusOK {
+		t.Fatalf("second add: status = %d", second.StatusCode)
+	}
+	redirect := second.Header.Get("HX-Redirect")
+	if !strings.HasSuffix(redirect, "?flash=duplicate") {
+		t.Errorf("HX-Redirect = %q, want ?flash=duplicate", redirect)
+	}
+}
+
+func TestAddHydrateFailure502(t *testing.T) {
+	reg := providers.NewRegistry()
+	reg.Register(store.TypeMovie, stubSearchProvider{hydrateErr: fmt.Errorf("upstream down")})
+	srv, _, _ := newTestServerWithIngest(t, reg)
+
+	resp, _ := postForm(t, srv, "POST", "/items", url.Values{"type": {"movie"}, "provider_id": {"949"}}, true)
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("status = %d, want 502", resp.StatusCode)
+	}
+}
+
+func TestDetailRendersFlashBanner(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	resp, body := get(t, srv, fmt.Sprintf("/items/%d?flash=duplicate", ids["game"]))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "Already in your library") {
+		t.Error("detail missing the duplicate flash banner")
+	}
+}
+
+func TestAddNonHTMXRedirects303(t *testing.T) {
+	reg := providers.NewRegistry()
+	reg.Register(store.TypeMovie, stubSearchProvider{details: &providers.ItemDetails{
+		MediaType: store.TypeMovie, Title: "Heat", ReleaseYear: intp(1995),
+		Provider: "tmdb", ProviderID: "949",
+	}})
+	srv, _, _ := newTestServerWithIngest(t, reg)
+
+	resp, _ := postForm(t, srv, "POST", "/items", url.Values{"type": {"movie"}, "provider_id": {"949"}}, false)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.Contains(loc, "flash=added") {
+		t.Errorf("Location = %q, want flash=added", loc)
 	}
 }

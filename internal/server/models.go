@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
 	"github.com/yuin/goldmark"
 )
@@ -138,6 +139,44 @@ func hueFor(title string) int {
 		h = (h*31 + int(r)) % 360
 	}
 	return h
+}
+
+// SearchCandidate is one row of the /search picker fragment.
+type SearchCandidate struct {
+	Type           string
+	ProviderID     string
+	Title          string
+	Year           *int
+	Disambiguation string
+	Cover          *CoverRef
+}
+
+// SearchData is the search.html "search-results" fragment's view model.
+// Hint carries a non-error, user-facing message (empty query's provider
+// not configured); an upstream Search failure instead goes through the
+// shared inline-error block (see s.upstreamError), never through Hint.
+type SearchData struct {
+	Hint       string
+	Candidates []SearchCandidate
+}
+
+// toSearchCandidate adapts a provider search result to the picker's view
+// model, building a CoverRef-shaped thumbnail so search.html can reuse
+// the existing "thumb" partial (real image if the provider gave one,
+// else the same monogram placeholder used everywhere else).
+func toSearchCandidate(c providers.Candidate) SearchCandidate {
+	cover := &CoverRef{Monogram: monogram(c.Title), Hue: hueFor(c.Title)}
+	if c.ThumbnailURL != nil {
+		cover.URL = *c.ThumbnailURL
+	}
+	return SearchCandidate{
+		Type:           string(c.MediaType),
+		ProviderID:     c.ProviderID,
+		Title:          c.Title,
+		Year:           c.Year,
+		Disambiguation: c.Disambiguation,
+		Cover:          cover,
+	}
 }
 
 func dotClassFor(mt store.MediaType) string {

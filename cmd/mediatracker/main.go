@@ -103,6 +103,7 @@ func run() error {
 		RefreshInterval: cfg.RefreshInterval.Duration,
 		Refresher:       refresher,
 		Background:      &wg,
+		Ingest:          deps,
 	}))
 
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: mux}

@@ -20,6 +20,7 @@ type Deps struct {
 	RefreshInterval time.Duration // bounds the "newly available" window
 	Refresher       *ingest.Refresher
 	Background      *sync.WaitGroup // tracks request-spawned background work (the manual global refresh) so main can drain it before closing the store; nil is allowed (tests) and means untracked
+	Ingest          ingest.Deps     // the add-flow: registry lookups (Ingest.Registry) and Ingest.Add
 }
 
 func New(d Deps) http.Handler {
@@ -41,6 +42,8 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /items/{id}/refresh", s.refreshItem)
 	mux.HandleFunc("POST /refresh", s.refreshAll)
 	mux.HandleFunc("GET /covers/{name}", s.cover)
+	mux.HandleFunc("GET /search", s.search)
+	mux.HandleFunc("POST /items", s.addItem)
 	return mux
 }
 

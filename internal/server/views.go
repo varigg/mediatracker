@@ -46,6 +46,11 @@ func newViews() *views {
 			"templates/layout.html", "templates/partials.html", "templates/"+page))
 		pages[page] = t
 	}
+	// search.html is a fragment-only set: no layout, just the
+	// search-results define plus partials.html for the "thumb" partial
+	// its candidate rows reuse.
+	pages["search.html"] = template.Must(template.New("search.html").Funcs(tmplFuncs).ParseFS(templatesFS,
+		"templates/partials.html", "templates/search.html"))
 	return &views{pages: pages}
 }
 

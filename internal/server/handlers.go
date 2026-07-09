@@ -330,6 +330,116 @@ func (s *site) refreshAll(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("<span>Refresh started</span>"))
 }
 
+// validMediaType reports whether typ is one of the four types the
+// add-flow (and the registry) knows about.
+func validMediaType(typ store.MediaType) bool {
+	switch typ {
+	case store.TypeMovie, store.TypeTV, store.TypeBook, store.TypeGame:
+		return true
+	default:
+		return false
+	}
+}
+
+// upstreamError answers a provider/upstream failure (spec §5 class 2:
+// the request was well-formed, but a dependency we don't control
+// failed) — 502, distinct from s.fail's 500 which is reserved for our
+// own system failures (class 3). HTMX gets the same inline-error
+// fragment badRequest uses for 4xx; a plain request gets a 502 body.
+func (s *site) upstreamError(w http.ResponseWriter, r *http.Request, msg string) {
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadGateway)
+		if err := s.views.executeBlock(w, "detail.html", "inline-error", msg); err != nil {
+			s.deps.Logger.Error("render inline error", "error", err)
+		}
+		return
+	}
+	http.Error(w, msg, http.StatusBadGateway)
+}
+
+// search handles GET /search?type=&q= — the search-box's live picker.
+// It always renders the search-results fragment (or, for an empty
+// query, nothing): there is no full-page variant of this endpoint.
+func (s *site) search(w http.ResponseWriter, r *http.Request) {
+	mediaType := store.MediaType(r.URL.Query().Get("type"))
+	if !validMediaType(mediaType) {
+		http.Error(w, "unknown media type: "+string(mediaType), http.StatusBadRequest)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		return
+	}
+
+	p, err := s.deps.Ingest.Registry.Get(mediaType)
+	if err != nil {
+		// Missing provider config is user-input-adjacent (an admin setup
+		// gap, not a request failure): 200 with a hint row, not an error.
+		data := SearchData{Hint: fmt.Sprintf("No provider configured for %s — add the API key to config.toml.", mediaType)}
+		if err := s.views.renderBlock(w, "search.html", "search-results", data); err != nil {
+			s.deps.Logger.Error("render search hint", "error", err)
+		}
+		return
+	}
+
+	candidates, err := p.Search(r.Context(), q)
+	if err != nil {
+		s.upstreamError(w, r, fmt.Sprintf("search failed: %v", err))
+		return
+	}
+	if len(candidates) > 8 {
+		candidates = candidates[:8]
+	}
+	data := SearchData{Candidates: make([]SearchCandidate, 0, len(candidates))}
+	for _, c := range candidates {
+		data.Candidates = append(data.Candidates, toSearchCandidate(c))
+	}
+	if err := s.views.renderBlock(w, "search.html", "search-results", data); err != nil {
+		s.deps.Logger.Error("render search results", "error", err)
+	}
+}
+
+// addItem handles POST /items (form: type=, provider_id=) — the picker
+// button's target. On success it flashes "added" or "duplicate"
+// depending on ingest.Deps.Add's created flag and either sets
+// HX-Redirect (HTMX) or 303s (plain form post) to the new detail page.
+func (s *site) addItem(w http.ResponseWriter, r *http.Request) {
+	mediaType := store.MediaType(r.FormValue("type"))
+	if !validMediaType(mediaType) {
+		s.badRequest(w, r, "unknown media type: "+string(mediaType))
+		return
+	}
+	providerID := r.FormValue("provider_id")
+	if providerID == "" {
+		s.badRequest(w, r, "missing provider_id")
+		return
+	}
+
+	// The add-flow's synchronous budget (spec §3): hydrate, persist, and
+	// best-effort enrichment must land within this window.
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	item, created, err := s.deps.Ingest.Add(ctx, mediaType, providerID)
+	if err != nil {
+		s.upstreamError(w, r, fmt.Sprintf("add failed: %v", err))
+		return
+	}
+
+	flash := "duplicate"
+	if created {
+		flash = "added"
+	}
+	target := fmt.Sprintf("/items/%d?flash=%s", item.ID, flash)
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
 // coverName is the only shape covers/ serves: "{item id}.jpg", checked
 // before the filesystem is touched (also blocks path traversal).
 var coverName = regexp.MustCompile(`^[0-9]+\.jpg$`)

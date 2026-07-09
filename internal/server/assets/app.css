@@ -76,18 +76,22 @@ nav.tabs :is(a,button){display:flex;align-items:center;gap:7px;padding:0 11px;co
 nav.tabs :is(a,button):hover{color:var(--ink)}
 nav.tabs :is(a,button).on{color:var(--ink);border-bottom-color:var(--accent)}
 nav.tabs .n{font-size:11px;color:var(--muted)}
-.searchbox{margin-left:auto;position:relative}
+.searchbox{margin-left:auto;position:relative;display:flex;align-items:center}
 .searchbox input{width:220px;padding:5px 10px 5px 28px;border:1px solid var(--hair);
   border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
 .searchbox .glyph{position:absolute;left:9px;top:6px;color:var(--muted)}
+#qtype{border:1px solid var(--hair);border-radius:6px;background:var(--bg);color:var(--ink);
+  font:inherit;font-size:12px;padding:5px 6px;margin-right:6px}
 .search-pop{position:absolute;top:36px;right:0;width:330px;background:var(--surface);
-  border:1px solid var(--hair);border-radius:8px;box-shadow:var(--shadow);padding:5px;display:none}
-.search-pop.open{display:block}
+  border:1px solid var(--hair);border-radius:8px;box-shadow:var(--shadow);padding:5px;display:none;
+  max-height:60vh;overflow-y:auto}
+.search-pop:not(:empty){display:block}
 .search-pop .cand{display:flex;gap:10px;padding:6px 8px;border-radius:6px;align-items:center;width:100%;text-align:left}
 .search-pop .cand:hover{background:var(--hair2)}
 .search-pop .thumb{width:26px;height:38px;border-radius:3px;flex:none}
 .search-pop .ct{font-weight:550}
 .search-pop .cs{color:var(--muted);font-size:12px}
+.search-hint{color:var(--muted);font-size:12.5px;padding:9px 8px}
 
 .wrap{max-width:1080px;margin:0 auto;padding:20px 24px}
 

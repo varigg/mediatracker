@@ -20,6 +20,14 @@ import (
 
 func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	t.Helper()
+	return newTestServerWithIngest(t, providers.NewRegistry())
+}
+
+// newTestServerWithIngest is newTestServer with a caller-supplied
+// registry, for tests that need a working (possibly stub) metadata
+// provider wired into the add-flow.
+func newTestServerWithIngest(t *testing.T, reg *providers.Registry) (*httptest.Server, *store.Store, string) {
+	t.Helper()
 	dataDir := t.TempDir()
 	st, err := store.Open(context.Background(), filepath.Join(dataDir, "app.db"))
 	if err != nil {
@@ -27,19 +35,21 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	}
 	t.Cleanup(func() { st.Close() })
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	refresher := ingest.NewRefresher(ingest.Deps{
+	ingestDeps := ingest.Deps{
 		Store:      st,
-		Registry:   providers.NewRegistry(),
+		Registry:   reg,
 		Logger:     logger,
 		DataDir:    dataDir,
 		HTTPClient: http.DefaultClient,
-	}, time.Hour)
+	}
+	refresher := ingest.NewRefresher(ingestDeps, time.Hour)
 	srv := httptest.NewServer(New(Deps{
 		Store:           st,
 		Logger:          logger,
 		DataDir:         dataDir,
 		RefreshInterval: 7 * 24 * time.Hour,
 		Refresher:       refresher,
+		Ingest:          ingestDeps,
 	}))
 	t.Cleanup(srv.Close)
 	return srv, st, dataDir

@@ -20,7 +20,14 @@
   </nav>
   <div class="searchbox">
     <span class="glyph">⌕</span>
-    <input placeholder="Add a movie, book, game…" disabled title="Add flow arrives in the next milestone">
+    <select id="qtype" name="type">
+      <option value="movie">Movie</option><option value="tv">TV</option>
+      <option value="book">Book</option><option value="game">Game</option>
+    </select>
+    <input id="q" name="q" placeholder="Add a movie, book, game…" autocomplete="off"
+      hx-get="/search" hx-include="#qtype" hx-trigger="input changed delay:300ms"
+      hx-target="#search-results">
+    <div class="search-pop" id="search-results"></div>
   </div>
 </div></header>
 <main class="wrap">{{block "content" .}}{{end}}</main>
