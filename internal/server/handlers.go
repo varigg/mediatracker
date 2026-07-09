@@ -341,7 +341,7 @@ func validMediaType(typ store.MediaType) bool {
 	}
 }
 
-// upstreamError answers a provider/upstream failure (spec §5 class 2:
+// upstreamError answers a provider/upstream failure (spec §5 class 1:
 // the request was well-formed, but a dependency we don't control
 // failed) — 502, distinct from s.fail's 500 which is reserved for our
 // own system failures (class 3). HTMX gets the same inline-error
@@ -416,6 +416,10 @@ func (s *site) addItem(w http.ResponseWriter, r *http.Request) {
 		s.badRequest(w, r, "missing provider_id")
 		return
 	}
+	if _, err := s.deps.Ingest.Registry.Get(mediaType); err != nil {
+		s.badRequest(w, r, fmt.Sprintf("no provider configured for %s", mediaType))
+		return
+	}
 
 	// The add-flow's synchronous budget (spec §3): hydrate, persist, and
 	// best-effort enrichment must land within this window.
@@ -423,7 +427,11 @@ func (s *site) addItem(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	item, created, err := s.deps.Ingest.Add(ctx, mediaType, providerID)
 	if err != nil {
-		s.upstreamError(w, r, fmt.Sprintf("add failed: %v", err))
+		if errors.Is(err, ingest.ErrHydrate) {
+			s.upstreamError(w, r, fmt.Sprintf("add failed: %v", err))
+			return
+		}
+		s.fail(w, "add item", err)
 		return
 	}
 

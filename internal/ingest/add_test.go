@@ -135,6 +135,9 @@ func TestAddHydrateFailureAborts(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error when Hydrate fails")
 	}
+	if !errors.Is(err, ErrHydrate) {
+		t.Errorf("err = %v, want errors.Is(err, ErrHydrate)", err)
+	}
 	items, err := d.Store.ListItems(context.Background(), store.ListFilter{})
 	if err != nil {
 		t.Fatalf("ListItems: %v", err)

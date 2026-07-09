@@ -660,6 +660,37 @@ func TestAddHydrateFailure502(t *testing.T) {
 	}
 }
 
+// TestAddUnknownProviderType400 covers a registry miss on POST /items: no
+// provider is configured for the media type, which is a user/admin-input
+// problem (spec §5 class 2), not an upstream failure — 400, not 502.
+func TestAddUnknownProviderType400(t *testing.T) {
+	srv, _, _ := newTestServerWithIngest(t, providers.NewRegistry())
+
+	resp, _ := postForm(t, srv, "POST", "/items", url.Values{"type": {"game"}, "provider_id": {"1"}}, true)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+// TestAddStoreFailure500 covers a system failure inside ingest.Add's
+// persistence step (spec §5 class 3): hydrate succeeds, but the store is
+// unavailable. That must not collapse into the same 502 hydrate failures
+// get — it's our own system failing, not an upstream provider.
+func TestAddStoreFailure500(t *testing.T) {
+	reg := providers.NewRegistry()
+	reg.Register(store.TypeMovie, stubSearchProvider{details: &providers.ItemDetails{
+		MediaType: store.TypeMovie, Title: "Heat", ReleaseYear: intp(1995),
+		Provider: "tmdb", ProviderID: "949",
+	}})
+	srv, st, _ := newTestServerWithIngest(t, reg)
+	st.Close() // simulate a dead database: hydrate succeeds, CreateItem fails
+
+	resp, _ := postForm(t, srv, "POST", "/items", url.Values{"type": {"movie"}, "provider_id": {"949"}}, true)
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", resp.StatusCode)
+	}
+}
+
 func TestDetailRendersFlashBanner(t *testing.T) {
 	srv, st, _ := newTestServer(t)
 	ids := seedWeb(t, st)

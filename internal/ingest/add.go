@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 
@@ -10,6 +11,12 @@ import (
 	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
 )
+
+// ErrHydrate marks a failure to hydrate the picked candidate from its
+// metadata provider (spec §5 class 1: an upstream/provider failure).
+// Callers use errors.Is(err, ErrHydrate) to distinguish this from the
+// system failures (store, marshal) further down Add, which are class 3.
+var ErrHydrate = errors.New("ingest: hydrate failed")
 
 func toStoreRatings(itemID int64, in []providers.Rating) []store.Rating {
 	out := make([]store.Rating, len(in))
@@ -41,7 +48,7 @@ func (d Deps) Add(ctx context.Context, mediaType store.MediaType, providerID str
 	}
 	details, err := p.Hydrate(ctx, providerID)
 	if err != nil {
-		return nil, false, fmt.Errorf("ingest: hydrate %s %s: %w", mediaType, providerID, err)
+		return nil, false, fmt.Errorf("%w (%s %s): %w", ErrHydrate, mediaType, providerID, err)
 	}
 
 	metadata := make(map[string]any, len(details.Metadata)+1)
