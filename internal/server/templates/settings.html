@@ -59,7 +59,7 @@
   <span id="refresh-status"></span>
  </div>
  <div class="setrow static">
-  {{if gt .StaleCount 0}}<span class="mono stalek">{{.StaleCount}} stale availability rows</span>
+  {{if gt .StaleCount 0}}<span class="mono stalek">{{.StaleCount}} stale availability {{if eq .StaleCount 1}}row{{else}}rows{{end}}</span>
   {{else}}<span class="mono">No stale availability</span>{{end}}
  </div>
 </div>

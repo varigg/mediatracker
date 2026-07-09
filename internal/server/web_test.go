@@ -949,7 +949,7 @@ func TestDetailAndSettingsShowStaleAvailability(t *testing.T) {
 	}
 
 	_, body = get(t, srv, "/settings")
-	if !strings.Contains(body, "1 stale availability rows") {
+	if !strings.Contains(body, "1 stale availability row<") {
 		t.Errorf("settings missing stale availability count: %s", body)
 	}
 }
