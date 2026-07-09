@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -79,5 +80,73 @@ func TestHomeRendersSections(t *testing.T) {
 	}
 	if strings.Contains(body, "The Hobbit") {
 		t.Error("done book must not appear in Continue/Newly available")
+	}
+}
+
+func TestTabDefaultsToWantTo(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	resp, body := get(t, srv, "/movies-tv")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "Dune: Part Two") { // want_to movie
+		t.Error("want_to movie missing from default tab view")
+	}
+	if strings.Contains(body, "Severance") { // in_progress: filtered out by default state
+		t.Error("in_progress item leaked into want_to view")
+	}
+}
+
+func TestTabStateAndTypeFilters(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	_, body := get(t, srv, "/movies-tv?state=in_progress&type=tv")
+	if !strings.Contains(body, "Severance") {
+		t.Error("tv in_progress filter missed Severance")
+	}
+	_, body = get(t, srv, "/books?state=done")
+	if !strings.Contains(body, "The Hobbit") {
+		t.Error("done book missing")
+	}
+}
+
+func TestTabAvailableToMe(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	_, body := get(t, srv, "/games?available=1")
+	if !strings.Contains(body, "Hades") { // steam-owned counts as available
+		t.Error("owned game missing from available-to-me")
+	}
+}
+
+func TestTabInvalidParamsAre400(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	for _, q := range []string{"?state=pending", "?sort=popularity", "?dir=sideways"} {
+		resp, _ := get(t, srv, "/games"+q)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", q, resp.StatusCode)
+		}
+	}
+}
+
+func TestTabHTMXFragment(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	req, _ := http.NewRequest("GET", srv.URL+"/games", nil)
+	req.Header.Set("HX-Request", "true")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	body := string(b)
+	if strings.Contains(body, "<!doctype html>") {
+		t.Error("HX-Request must return the fragment, not the full page")
+	}
+	if !strings.Contains(body, "Hades") {
+		t.Error("fragment missing table content")
 	}
 }

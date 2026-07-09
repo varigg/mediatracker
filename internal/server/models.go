@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"html/template"
+	"math"
 	"net/http"
 	"strings"
 
@@ -24,6 +26,19 @@ var groupTypes = map[string][]store.MediaType{
 
 var groupLabels = map[string]string{
 	"movies-tv": "Movies & TV", "books": "Books", "games": "Games",
+}
+
+// stateOrder fixes the left-to-right order of the toolbar's state tabs;
+// stateNames supplies their labels.
+var stateOrder = []store.State{
+	store.StateWantTo, store.StateInProgress, store.StateDone, store.StateAbandoned,
+}
+
+var stateNames = map[store.State]string{
+	store.StateWantTo:     "Want to",
+	store.StateInProgress: "In progress",
+	store.StateDone:       "Done",
+	store.StateAbandoned:  "Abandoned",
 }
 
 func (s *site) healthz(w http.ResponseWriter, r *http.Request) {
@@ -165,4 +180,171 @@ func groupRows(items []store.MediaItem, sub func(store.MediaItem) (string, strin
 		}
 	}
 	return out
+}
+
+// TabRow is one row of the ledger table.
+type TabRow struct {
+	ID         int64
+	Title      string
+	Genres     string
+	Type       store.MediaType
+	Year       *int
+	Rating     *int // avg across sources, nil when unrated
+	Avail      []AvailBadge
+	State      store.State
+	StateLabel string
+	Added      string
+	DotClass   string
+	Cover      *CoverRef
+}
+
+// AvailBadge is one availability chip in a row's Availability cell.
+type AvailBadge struct {
+	Label string
+	Class string // "sub" | "own" | ""
+}
+
+// StateTab is one entry in the toolbar's state selector.
+type StateTab struct {
+	State  store.State
+	Label  string
+	Count  int
+	Active bool
+}
+
+// TabData is the tab.html view model.
+type TabData struct {
+	Nav     Nav
+	Group   string
+	Label   string
+	Sub     string // "" | "movie" | "tv"
+	States  []StateTab
+	Filter  store.ListFilter
+	Rows    []TabRow
+	Total   int
+	Density string       // s|m|l
+	Query   template.URL // current query string minus state, for state links
+}
+
+// tabData builds the tab.html view model: state-tab counts (summed
+// across the group's types, respecting sub when set), row density from
+// settings, and per-row ratings/availability classified against a
+// subscribed-services map fetched once.
+func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, items []store.MediaItem) (TabData, error) {
+	ctx := r.Context()
+
+	nav, err := s.nav(r, group)
+	if err != nil {
+		return TabData{}, err
+	}
+
+	counts, err := s.deps.Store.GroupStateCounts(ctx)
+	if err != nil {
+		return TabData{}, err
+	}
+	types := groupTypes[group]
+	if sub != "" {
+		types = []store.MediaType{store.MediaType(sub)}
+	}
+	states := make([]StateTab, 0, len(stateOrder))
+	for _, st := range stateOrder {
+		n := 0
+		for _, mt := range types {
+			n += counts[mt][st]
+		}
+		states = append(states, StateTab{State: st, Label: stateNames[st], Count: n, Active: f.State == st})
+	}
+
+	density, ok, err := s.deps.Store.GetSetting(ctx, "row_density")
+	if err != nil {
+		return TabData{}, err
+	}
+	if !ok || density == "" {
+		density = "l"
+	}
+
+	services, err := s.deps.Store.ListServices(ctx)
+	if err != nil {
+		return TabData{}, err
+	}
+	svcByCode := make(map[string]store.Service, len(services))
+	for _, sv := range services {
+		svcByCode[sv.Slug] = sv
+	}
+
+	rows := make([]TabRow, 0, len(items))
+	for i := range items {
+		it := &items[i]
+
+		ratings, err := s.deps.Store.GetRatings(ctx, it.ID)
+		if err != nil {
+			return TabData{}, err
+		}
+		var rating *int
+		if len(ratings) > 0 {
+			sum := 0
+			for _, rt := range ratings {
+				sum += rt.Score
+			}
+			avg := int(math.Round(float64(sum) / float64(len(ratings))))
+			rating = &avg
+		}
+
+		avail, err := s.deps.Store.GetAvailability(ctx, it.ID)
+		if err != nil {
+			return TabData{}, err
+		}
+		badges := make([]AvailBadge, 0, len(avail))
+		for _, a := range avail {
+			sv := svcByCode[a.ServiceSlug]
+			label := sv.Name
+			if label == "" {
+				label = a.ServiceSlug
+			}
+			class := ""
+			switch {
+			case a.Kind == store.KindOwned:
+				class = "own"
+			case sv.Subscribed:
+				class = "sub"
+			}
+			badges = append(badges, AvailBadge{Label: label, Class: class})
+		}
+
+		added := it.AddedAt
+		if len(added) > 10 {
+			added = added[:10]
+		}
+
+		rows = append(rows, TabRow{
+			ID:         it.ID,
+			Title:      it.Title,
+			Genres:     strings.Join(it.Genres, " · "),
+			Type:       it.MediaType,
+			Year:       it.ReleaseYear,
+			Rating:     rating,
+			Avail:      badges,
+			State:      it.State,
+			StateLabel: stateNames[it.State],
+			Added:      added,
+			DotClass:   dotClassFor(it.MediaType),
+			Cover:      coverRef(it),
+		})
+	}
+
+	q := r.URL.Query()
+	q.Del("state")
+
+	return TabData{
+		Nav:     nav,
+		Group:   group,
+		Label:   groupLabels[group],
+		Sub:     sub,
+		States:  states,
+		Filter:  f,
+		Rows:    rows,
+		Total:   len(rows),
+		Density: density,
+		Query:   template.URL(q.Encode()),
+	}, nil
 }

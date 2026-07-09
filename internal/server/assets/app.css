@@ -123,6 +123,9 @@ tbody tr.game td{background:var(--t-game-tint)}
 tbody tr:hover td{filter:brightness(0.96)}
 :root[data-theme="dark"] tbody tr:hover td{filter:brightness(1.18)}
 :root{--thumb-h:38px}
+.tablewrap.density-s{--thumb-h:38px}
+.tablewrap.density-m{--thumb-h:56px}
+.tablewrap.density-l{--thumb-h:84px}
 .thumb{width:calc(var(--thumb-h)*0.667);height:var(--thumb-h);border-radius:3px;
   display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;
   font-size:calc(var(--thumb-h)*0.28);text-shadow:0 1px 2px rgba(0,0,0,.35);

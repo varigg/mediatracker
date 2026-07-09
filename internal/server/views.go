@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"net/url"
 )
 
 //go:embed templates/*.html
@@ -28,14 +29,69 @@ type views struct {
 	pages map[string]*template.Template
 }
 
+// tmplFuncs are shared across every page template. args builds the
+// data map "th" needs to render one sortable column header.
+var tmplFuncs = template.FuncMap{
+	"args": func(d TabData, sort, label string) map[string]any {
+		href, glyph := sortLink(d, sort)
+		return map[string]any{"Href": href, "Glyph": glyph, "Label": label}
+	},
+}
+
 func newViews() *views {
 	pages := map[string]*template.Template{}
 	for _, page := range []string{"home.html", "tab.html", "detail.html"} {
-		t := template.Must(template.ParseFS(templatesFS,
+		t := template.Must(template.New("layout.html").Funcs(tmplFuncs).ParseFS(templatesFS,
 			"templates/layout.html", "templates/"+page))
 		pages[page] = t
 	}
 	return &views{pages: pages}
+}
+
+// sortLink computes a column header's target URL (current filter, this
+// column as sort, direction toggled if already active) and the glyph
+// showing the active direction — a pure function so it's unit-testable
+// without going through the template engine.
+func sortLink(d TabData, sort string) (href string, glyph string) {
+	f := d.Filter
+
+	curSort := f.Sort
+	if curSort == "" {
+		curSort = "added"
+	}
+	defDir := "desc"
+	if sort == "title" {
+		defDir = "asc"
+	}
+
+	dir := defDir
+	if curSort == sort {
+		curDir := f.Dir
+		if curDir == "" {
+			curDir = defDir
+		}
+		if curDir == "asc" {
+			dir = "desc"
+			glyph = "↑"
+		} else {
+			dir = "asc"
+			glyph = "↓"
+		}
+	}
+
+	v := url.Values{}
+	if f.State != "" {
+		v.Set("state", string(f.State))
+	}
+	if d.Sub != "" {
+		v.Set("type", d.Sub)
+	}
+	if f.Available {
+		v.Set("available", "1")
+	}
+	v.Set("sort", sort)
+	v.Set("dir", dir)
+	return "/" + d.Group + "?" + v.Encode(), glyph
 }
 
 // render writes the full page (layout + page).

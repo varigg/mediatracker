@@ -1,1 +1,59 @@
-{{define "content"}}{{end}}
+{{define "content"}}<div id="tab-body">{{template "tab-body" .}}</div>{{end}}
+
+{{define "tab-body"}}
+<div class="toolbar">
+  <div class="states">
+    {{$d := .}}
+    {{range .States}}
+    <a class="{{if .Active}}on{{end}}"
+       hx-get="/{{$d.Group}}?state={{.State}}{{if $d.Sub}}&type={{$d.Sub}}{{end}}"
+       hx-target="#tab-body" hx-push-url="true"
+       href="/{{$d.Group}}?state={{.State}}">{{.Label}}<span class="mono">{{.Count}}</span></a>
+    {{end}}
+  </div>
+  {{if eq .Group "movies-tv"}}
+  <div class="subtabs">
+    <a class="{{if eq .Sub ""}}on{{end}}" hx-get="/movies-tv?state={{.Filter.State}}" hx-target="#tab-body" hx-push-url="true" href="/movies-tv?state={{.Filter.State}}">All</a>
+    <a class="{{if eq .Sub "movie"}}on{{end}}" hx-get="/movies-tv?state={{.Filter.State}}&type=movie" hx-target="#tab-body" hx-push-url="true" href="/movies-tv?state={{.Filter.State}}&type=movie">Movies</a>
+    <a class="{{if eq .Sub "tv"}}on{{end}}" hx-get="/movies-tv?state={{.Filter.State}}&type=tv" hx-target="#tab-body" hx-push-url="true" href="/movies-tv?state={{.Filter.State}}&type=tv">TV</a>
+  </div>
+  {{end}}
+  <div class="tool-right">
+    <label class="avail"><input type="checkbox" {{if .Filter.Available}}checked{{end}}
+      hx-get="/{{.Group}}?state={{.Filter.State}}{{if .Sub}}&type={{.Sub}}{{end}}{{if not .Filter.Available}}&available=1{{end}}"
+      hx-target="#tab-body" hx-push-url="true">Available to me</label>
+  </div>
+</div>
+<div class="tablewrap density-{{.Density}}"><table>
+  <thead><tr>
+    <th></th>
+    {{template "th" args . "title" "Title"}}
+    <th>Type</th>
+    {{template "th" args . "year" "Year"}}
+    {{template "th" args . "rating" "Rating"}}
+    <th>Availability</th><th>State</th>
+    {{template "th" args . "added" "Added"}}
+  </tr></thead>
+  <tbody>
+  {{range .Rows}}
+  <tr class="{{.DotClass}}" onclick="window.location='/items/{{.ID}}'">
+    <td style="width:38px">{{template "thumb" .Cover}}</td>
+    <td class="titlecell"><a href="/items/{{.ID}}">{{.Title}}</a><span class="sub">{{.Genres}}</span></td>
+    <td><span class="typechip {{.Type}}">{{.Type}}</span></td>
+    <td class="mono">{{if .Year}}{{.Year}}{{end}}</td>
+    <td class="mono">{{if .Rating}}★ {{.Rating}}{{end}}</td>
+    <td>{{range .Avail}}<span class="badge {{.Class}}">{{.Label}}</span> {{end}}</td>
+    <td><span class="state {{.State}}">{{.StateLabel}}</span></td>
+    <td class="mono" style="color:var(--muted)">{{.Added}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="8" class="empty">Nothing here — try another filter.</td></tr>
+  {{end}}
+  </tbody>
+</table></div>
+<p class="resultmeta mono">{{.Total}} items</p>
+{{end}}
+
+{{define "th"}}<th><button type="button" hx-get="{{.Href}}" hx-target="#tab-body" hx-push-url="true">{{.Label}}<span class="dir">{{.Glyph}}</span></button></th>{{end}}
+
+{{define "thumb"}}{{if .URL}}<span class="thumb"><img src="{{.URL}}" alt=""></span>{{else}}<span class="thumb" style="background-color:hsl({{.Hue}} 32% 40%)">{{.Monogram}}</span>{{end}}{{end}}
