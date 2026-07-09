@@ -92,3 +92,12 @@ func TestWatchRefreshUpstreamError(t *testing.T) {
 		t.Error("upstream 500 must surface as error (caller decides degradation)")
 	}
 }
+
+func TestSlugForNetflixAdTier(t *testing.T) {
+	// "Netflix Standard with Ads" is an observed ad-tier variant
+	// that should map to the canonical netflix slug.
+	got := slugFor("Netflix Standard with Ads")
+	if got != "netflix" {
+		t.Errorf("slugFor(%q) = %q, want %q", "Netflix Standard with Ads", got, "netflix")
+	}
+}

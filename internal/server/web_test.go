@@ -859,6 +859,116 @@ func TestSettingsProviderStatus(t *testing.T) {
 	}
 }
 
+func TestSettingsShowsProviderLastSuccessAndSnapshotAges(t *testing.T) {
+	srv, st, dataDir := newTestServer(t)
+	ctx := context.Background()
+	if err := st.SetSetting(ctx, "provider_last_success_tmdb", "2026-07-09 08:00:00"); err != nil {
+		t.Fatal(err)
+	}
+
+	catalogsDir := filepath.Join(dataDir, "catalogs")
+	if err := os.MkdirAll(catalogsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSnapshot := func(slug, fetchedAt string) {
+		data := fmt.Sprintf(`{"fetched_at":%q,"entries":[]}`, fetchedAt)
+		if err := os.WriteFile(filepath.Join(catalogsDir, slug+".json"), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeSnapshot("game_pass", "2026-07-09 07:30:00")
+	writeSnapshot("steam_owned", "2026-07-09 07:45:00")
+	// ps_plus intentionally left unwritten: the syncer is a placeholder
+	// (plan decision 2), so it must honestly render "never".
+
+	resp, body := get(t, srv, "/settings")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, needle := range []string{
+		"last success: 2026-07-09 08:00:00", // tmdb provider health
+		"2026-07-09 07:30:00",               // game_pass snapshot age
+		"2026-07-09 07:45:00",               // steam_owned snapshot age
+	} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("settings missing %q, got %s", needle, body)
+		}
+	}
+	if strings.Count(body, "never") < 1 {
+		t.Errorf("settings missing ps_plus 'never' fallback, got %s", body)
+	}
+}
+
+func TestSettingsSnapshotAgesAndProviderHealthNeverOnFreshDir(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	resp, body := get(t, srv, "/settings")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, needle := range []string{"Game Pass", "PS Plus", "Steam owned"} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("settings missing snapshot label %q, got %s", needle, body)
+		}
+	}
+	// Last refresh + three catalog ages + tmdb/igdb provider health, all
+	// unset on a fresh dir.
+	if got := strings.Count(body, "never"); got < 5 {
+		t.Errorf(`settings has %d "never" occurrences on a fresh dir, want at least 5`, got)
+	}
+}
+
+func TestDetailAndSettingsShowStaleAvailability(t *testing.T) {
+	// A tiny RefreshInterval makes the 2×-interval staleness threshold
+	// breach almost immediately, letting the test avoid backdating rows
+	// through unexported store internals it can't reach.
+	srv, st, _ := newTestServerWithInterval(t, time.Millisecond)
+	ctx := context.Background()
+	it, _, err := st.CreateItem(ctx, store.NewItem{
+		MediaType: store.TypeMovie, Title: "Heat", Provider: "tmdb", ProviderID: "949"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetServiceSubscribed(ctx, "netflix", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertAvailability(ctx, it.ID, []store.Availability{
+		{ServiceSlug: "netflix", Kind: store.KindSubscription}}); err != nil {
+		t.Fatal(err)
+	}
+	// fetched_at has 1-second resolution (store.TimeFormat); sleep past a
+	// full second so the row is stale regardless of where within the
+	// current second the insert landed.
+	time.Sleep(1200 * time.Millisecond)
+
+	resp, body := get(t, srv, fmt.Sprintf("/items/%d", it.ID))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, `class="k stalek"`) {
+		t.Errorf("detail missing stale chip marker: %s", body)
+	}
+
+	_, body = get(t, srv, "/settings")
+	if !strings.Contains(body, "1 stale availability row<") {
+		t.Errorf("settings missing stale availability count: %s", body)
+	}
+}
+
+func TestDetailAvailabilityNotStaleByDefault(t *testing.T) {
+	srv, st, _ := newTestServer(t) // default week-long RefreshInterval
+	ids := seedWeb(t, st)
+
+	_, body := get(t, srv, fmt.Sprintf("/items/%d", ids["movie"]))
+	if strings.Contains(body, "stalek") {
+		t.Error("freshly seeded availability must not render as stale under the default refresh interval")
+	}
+
+	_, body = get(t, srv, "/settings")
+	if !strings.Contains(body, "No stale availability") {
+		t.Errorf("settings must report no stale availability by default: %s", body)
+	}
+}
+
 func TestAddNonHTMXRedirects303(t *testing.T) {
 	reg := providers.NewRegistry()
 	reg.Register(store.TypeMovie, stubSearchProvider{details: &providers.ItemDetails{

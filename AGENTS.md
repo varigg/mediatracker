@@ -10,7 +10,7 @@ decision recorded there, surface it — don't silently override it.
 ## Architecture map
 
 ```
-cmd/mediatracker      binary: wiring + temporary /debug/* routes (delete in M6)
+cmd/mediatracker      binary: flag parsing, config load, dependency wiring
 cmd/probecheck        manual live-API verification; never in CI, never polished
 internal/config       config.toml loading (data dir); keys live here only
 internal/store        SQLite: migrations, typed CRUD, lifecycle transitions,
@@ -29,7 +29,8 @@ internal/providers    MetadataProvider + AvailabilityProvider contracts,
 internal/covers       cover download → resize (600px max width) → JPEG
 internal/ingest       orchestration: Add (synchronous add-flow) and
                       Refresher (weekly cycle, startup catch-up)
-internal/server       HTTP layer; only /healthz until M6
+internal/server       HTTP layer: full route surface (tabs, detail, add,
+                      settings, covers) rendered via html/template + HTMX
 ```
 
 Dependency direction is strict: `store` is a leaf; adapters depend on

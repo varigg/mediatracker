@@ -243,6 +243,52 @@ func TestRunCycleDoesNotWipeRatingsOnEmptyHydrate(t *testing.T) {
 	}
 }
 
+func TestRefreshItemRecordsProviderLastSuccess(t *testing.T) {
+	ctx := context.Background()
+	d, st := newRefresherDeps(t, stubProvider{details: detailsFixture(nil)})
+	fixed := time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
+	d.Now = func() time.Time { return fixed }
+	item, _, err := st.CreateItem(ctx, store.NewItem{MediaType: store.TypeMovie, Title: "A", Provider: "tmdb", ProviderID: "1"})
+	if err != nil {
+		t.Fatalf("CreateItem: %v", err)
+	}
+
+	r := NewRefresher(d, time.Hour)
+	if _, err := r.RefreshItem(ctx, item.ID); err != nil {
+		t.Fatalf("RefreshItem: %v", err)
+	}
+
+	got, ok, err := st.GetSetting(ctx, "provider_last_success_tmdb")
+	if err != nil || !ok {
+		t.Fatalf("provider_last_success_tmdb not set: ok=%v err=%v", ok, err)
+	}
+	if want := fixed.Format(store.TimeFormat); got != want {
+		t.Errorf("provider_last_success_tmdb = %q, want %q", got, want)
+	}
+}
+
+func TestRefreshItemHydrateFailureDoesNotRecordProviderSuccess(t *testing.T) {
+	ctx := context.Background()
+	d, st := newRefresherDeps(t, stubProvider{err: errors.New("upstream down")})
+	item, _, err := st.CreateItem(ctx, store.NewItem{MediaType: store.TypeMovie, Title: "A", Provider: "tmdb", ProviderID: "1"})
+	if err != nil {
+		t.Fatalf("CreateItem: %v", err)
+	}
+
+	r := NewRefresher(d, time.Hour)
+	if _, err := r.RefreshItem(ctx, item.ID); err != nil {
+		t.Fatalf("RefreshItem: %v", err)
+	}
+
+	_, ok, err := st.GetSetting(ctx, "provider_last_success_tmdb")
+	if err != nil {
+		t.Fatalf("GetSetting: %v", err)
+	}
+	if ok {
+		t.Error("provider_last_success_tmdb set despite hydrate failure")
+	}
+}
+
 func TestOverdueWhenNeverRun(t *testing.T) {
 	d, _ := newRefresherDeps(t, nil)
 	r := NewRefresher(d, time.Hour)

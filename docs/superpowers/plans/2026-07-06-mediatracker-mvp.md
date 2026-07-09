@@ -257,6 +257,24 @@ complete before M6 begins.
   rows are never produced. Pick up by capturing the real network
   request from a browser session on that page.
 
+- **Cloudflare Tunnel + Access for remote access** (added 2026-07-09,
+  during M7). The app has no auth of its own — LAN or Tailscale is the
+  documented security boundary. Fronting it with a Cloudflare Tunnel and
+  Access policy would allow safe remote access without opening a port or
+  building auth into the app itself. Not attempted; recorded as a future
+  ops option.
+
+- **Plex + local *arr stack integration** (added 2026-07-09, during M7).
+  Cross-referencing the tracker's want-to/in-progress state against a
+  Plex library and Sonarr/Radarr queues (e.g. surfacing "already
+  downloading" or "already in Plex") was raised but is out of MVP scope
+  — no design work done yet.
+
+- **Phone-layout polish** (moved here explicitly 2026-07-09; originally
+  deferred out of M6a's read-only scope). The frontend targets desktop
+  layouts; small-viewport/touch refinement was never scheduled into a
+  milestone and remains open.
+
 ## Self-Review Notes
 
 Spec coverage verified section-by-section: data model → M1; adapters →

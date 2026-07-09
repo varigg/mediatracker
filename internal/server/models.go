@@ -2,12 +2,14 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"math"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
@@ -418,9 +420,25 @@ type ServiceGroup struct {
 }
 
 // ProviderRow is one metadata-provider status row (configured or not).
+// LastSuccess is only populated for the providers ingest actually
+// tracks Hydrate successes for (settings key
+// "provider_last_success_{slug}" — see internal/ingest.recordProviderSuccess);
+// it's "" for rows that aren't a primary metadata Hydrate provider
+// (OMDb and Hardcover are ratings sub-sources folded into TMDB's and
+// Books' own Hydrate calls; Steam is an availability provider, covered
+// separately by its snapshot age).
 type ProviderRow struct {
-	Label      string
-	Configured bool
+	Label       string
+	Configured  bool
+	LastSuccess string
+}
+
+// SnapshotAge is one availability-catalog snapshot's age line (plan
+// decision 2): read straight from the catalog file's fetched_at, no
+// store surface involved.
+type SnapshotAge struct {
+	Label string
+	Age   string // "never" fallback
 }
 
 // SettingsData is the settings.html "settings-body" fragment's view model.
@@ -428,8 +446,10 @@ type SettingsData struct {
 	Nav           Nav
 	ServiceGroups []ServiceGroup
 	Providers     []ProviderRow
+	Snapshots     []SnapshotAge
 	Density       string
 	LastRefresh   string // "never" fallback
+	StaleCount    int
 }
 
 // mediaKindLabel maps a store.Service.MediaKind value to the same group
@@ -495,22 +515,59 @@ func (s *site) settingsData(r *http.Request) (SettingsData, error) {
 		lastRefresh = "never"
 	}
 
+	staleCutoff := time.Now().Add(-2 * s.deps.RefreshInterval)
+	staleCount, err := s.deps.Store.CountStaleAvailability(ctx, staleCutoff)
+	if err != nil {
+		return SettingsData{}, err
+	}
+
+	tmdbSuccess, err := s.providerLastSuccess(ctx, "tmdb")
+	if err != nil {
+		return SettingsData{}, err
+	}
+	igdbSuccess, err := s.providerLastSuccess(ctx, "igdb")
+	if err != nil {
+		return SettingsData{}, err
+	}
+
 	p := s.deps.Providers
 	providers := []ProviderRow{
-		{Label: "TMDB", Configured: p.TMDB},
+		{Label: "TMDB", Configured: p.TMDB, LastSuccess: tmdbSuccess},
 		{Label: "OMDb", Configured: p.OMDB},
-		{Label: "IGDB", Configured: p.IGDB},
+		{Label: "IGDB", Configured: p.IGDB, LastSuccess: igdbSuccess},
 		{Label: "Hardcover", Configured: p.Hardcover},
 		{Label: "Steam", Configured: p.Steam},
+	}
+
+	snapshots := []SnapshotAge{
+		{Label: "Game Pass", Age: snapshotAge(s.deps.DataDir, "game_pass")},
+		{Label: "PS Plus", Age: snapshotAge(s.deps.DataDir, "ps_plus")},
+		{Label: "Steam owned", Age: snapshotAge(s.deps.DataDir, "steam_owned")},
 	}
 
 	return SettingsData{
 		Nav:           nav,
 		ServiceGroups: serviceGroups(services),
 		Providers:     providers,
+		Snapshots:     snapshots,
 		Density:       density,
 		LastRefresh:   lastRefresh,
+		StaleCount:    staleCount,
 	}, nil
+}
+
+// providerLastSuccess reads the ingest-recorded last-success timestamp
+// for a metadata provider (settings key "provider_last_success_{slug}";
+// see internal/ingest.recordProviderSuccess). Missing → "never".
+func (s *site) providerLastSuccess(ctx context.Context, slug string) (string, error) {
+	v, ok, err := s.deps.Store.GetSetting(ctx, "provider_last_success_"+slug)
+	if err != nil {
+		return "", err
+	}
+	if !ok || v == "" {
+		return "never", nil
+	}
+	return v, nil
 }
 
 // verbFor names the "where to ___" verb per group (spec's mock: watch |
@@ -568,6 +625,9 @@ type RatingCard struct {
 type AvailChip struct {
 	Label, Kind, Class string
 	URL                *string
+	// Stale marks a chip whose fetched_at breaches 2× the refresh
+	// interval (spec §5). Cosmetic only — never blocks rendering.
+	Stale bool
 }
 
 // DetailData is the detail.html view model.
@@ -631,6 +691,10 @@ func (s *site) detailData(r *http.Request, id int64, flash string) (DetailData, 
 	for _, sv := range services {
 		svcByCode[sv.Slug] = sv
 	}
+	// Staleness threshold per spec §5: fetched_at older than 2× the
+	// refresh interval. Unparseable timestamps degrade silently to
+	// "not stale" — this is a cosmetic marker, not a correctness gate.
+	staleCutoff := time.Now().Add(-2 * s.deps.RefreshInterval)
 	chips := make([]AvailChip, 0, len(avail))
 	for _, a := range avail {
 		sv := svcByCode[a.ServiceSlug]
@@ -647,7 +711,11 @@ func (s *site) detailData(r *http.Request, id int64, flash string) (DetailData, 
 		case sv.Subscribed:
 			class, kind = "sub", "subscribed"
 		}
-		chips = append(chips, AvailChip{Label: label, Kind: kind, Class: class, URL: url})
+		stale := false
+		if fetched, err := time.Parse(store.TimeFormat, a.FetchedAt); err == nil {
+			stale = fetched.Before(staleCutoff)
+		}
+		chips = append(chips, AvailChip{Label: label, Kind: kind, Class: class, URL: url, Stale: stale})
 	}
 
 	legal := store.LegalTransitions(it.State)

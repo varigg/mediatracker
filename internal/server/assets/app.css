@@ -221,6 +221,8 @@ h2.sec:first-child{margin-top:0}
 .avchip.sub{background:var(--accent-tint);border-color:transparent;color:var(--accent-ink);font-weight:600}
 .avchip.own{background:var(--owned-tint);border-color:transparent;color:var(--owned);font-weight:600}
 .avchip .k{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.75}
+.stalek{color:var(--muted);font-style:italic}
+.avchip .stalek{opacity:1}
 .transitions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tbtn{border:1px solid var(--hair);border-radius:8px;padding:7px 14px;font-weight:600;background:var(--surface)}
 .tbtn:hover{border-color:var(--accent);color:var(--accent-ink)}

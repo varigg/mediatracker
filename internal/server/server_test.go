@@ -28,6 +28,20 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 // provider wired into the add-flow.
 func newTestServerWithIngest(t *testing.T, reg *providers.Registry) (*httptest.Server, *store.Store, string) {
 	t.Helper()
+	return newTestServerWithIngestInterval(t, reg, 7*24*time.Hour)
+}
+
+// newTestServerWithInterval is newTestServer with a caller-supplied
+// RefreshInterval — for tests exercising thresholds derived from it
+// (e.g. the 2×-interval staleness marker), where the default week-long
+// interval never breaches within a test's lifetime.
+func newTestServerWithInterval(t *testing.T, d time.Duration) (*httptest.Server, *store.Store, string) {
+	t.Helper()
+	return newTestServerWithIngestInterval(t, providers.NewRegistry(), d)
+}
+
+func newTestServerWithIngestInterval(t *testing.T, reg *providers.Registry, interval time.Duration) (*httptest.Server, *store.Store, string) {
+	t.Helper()
 	dataDir := t.TempDir()
 	st, err := store.Open(context.Background(), filepath.Join(dataDir, "app.db"))
 	if err != nil {
@@ -47,7 +61,7 @@ func newTestServerWithIngest(t *testing.T, reg *providers.Registry) (*httptest.S
 		Store:           st,
 		Logger:          logger,
 		DataDir:         dataDir,
-		RefreshInterval: 7 * 24 * time.Hour,
+		RefreshInterval: interval,
 		Refresher:       refresher,
 		Ingest:          ingestDeps,
 	}))

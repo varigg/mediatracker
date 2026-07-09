@@ -165,6 +165,43 @@ func TestAddDegradesOnCoverAndAvailabilityFailure(t *testing.T) {
 	}
 }
 
+func TestAddRecordsProviderLastSuccess(t *testing.T) {
+	d := newTestDeps(t, stubProvider{details: detailsFixture(nil)})
+	before := time.Now().UTC()
+
+	if _, _, err := d.Add(context.Background(), store.TypeMovie, "949"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	got, ok, err := d.Store.GetSetting(context.Background(), "provider_last_success_tmdb")
+	if err != nil || !ok {
+		t.Fatalf("provider_last_success_tmdb not set: ok=%v err=%v", ok, err)
+	}
+	gotT, err := time.Parse(store.TimeFormat, got)
+	if err != nil {
+		t.Fatalf("parse timestamp %q: %v", got, err)
+	}
+	// Tolerance-based: Add doesn't accept an injected clock, so this
+	// only pins the value to "around the Add call," not an exact time.
+	if gotT.Before(before.Add(-2*time.Second)) || gotT.After(time.Now().UTC().Add(2*time.Second)) {
+		t.Errorf("provider_last_success_tmdb = %v, want within a couple seconds of the Add call", gotT)
+	}
+}
+
+func TestAddHydrateFailureDoesNotRecordProviderSuccess(t *testing.T) {
+	d := newTestDeps(t, stubProvider{err: errors.New("upstream down")})
+	if _, _, err := d.Add(context.Background(), store.TypeMovie, "949"); err == nil {
+		t.Fatal("want error when Hydrate fails")
+	}
+	_, ok, err := d.Store.GetSetting(context.Background(), "provider_last_success_tmdb")
+	if err != nil {
+		t.Fatalf("GetSetting: %v", err)
+	}
+	if ok {
+		t.Error("provider_last_success_tmdb set despite hydrate failure")
+	}
+}
+
 func TestAddIdempotentReAddReturnsExistingItem(t *testing.T) {
 	d := newTestDeps(t, stubProvider{details: detailsFixture(nil)})
 	first, created, err := d.Add(context.Background(), store.TypeMovie, "949")

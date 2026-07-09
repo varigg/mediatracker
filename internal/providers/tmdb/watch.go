@@ -13,19 +13,22 @@ import (
 // providerSlugs maps TMDB watch-provider names onto the seeded services
 // catalog. Unmapped names fall back to slugify — availability rows may
 // reference services beyond the seeded set (no FK by design).
+// Ad-tier variants exist (e.g., "Netflix Standard with Ads", "Max With Ads");
+// observed variants belong here for canonical mapping.
 var providerSlugs = map[string]string{
-	"Netflix":            "netflix",
-	"Amazon Prime Video": "prime_video",
-	"Disney Plus":        "disney_plus",
-	"Disney+":            "disney_plus",
-	"Hulu":               "hulu",
-	"Max":                "max",
-	"Apple TV Plus":      "apple_tv_plus",
-	"Apple TV+":          "apple_tv_plus",
-	"Paramount Plus":     "paramount_plus",
-	"Paramount+":         "paramount_plus",
-	"Peacock":            "peacock",
-	"Peacock Premium":    "peacock",
+	"Netflix":                   "netflix",
+	"Netflix Standard with Ads": "netflix",
+	"Amazon Prime Video":        "prime_video",
+	"Disney Plus":               "disney_plus",
+	"Disney+":                   "disney_plus",
+	"Hulu":                      "hulu",
+	"Max":                       "max",
+	"Apple TV Plus":             "apple_tv_plus",
+	"Apple TV+":                 "apple_tv_plus",
+	"Paramount Plus":            "paramount_plus",
+	"Paramount+":                "paramount_plus",
+	"Peacock":                   "peacock",
+	"Peacock Premium":           "peacock",
 }
 
 type watchEntry struct {
