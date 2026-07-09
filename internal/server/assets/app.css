@@ -94,16 +94,16 @@ nav.tabs .n{font-size:11px;color:var(--muted)}
 /* ---------- toolbar: flat controls, no pill container ---------- */
 .toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px}
 .states{display:flex;gap:14px}
-.states button{color:var(--muted);font-weight:500;padding:2px 0;border-bottom:2px solid transparent}
-.states button:hover{color:var(--ink)}
-.states button.on{color:var(--accent-ink);border-bottom-color:var(--accent);font-weight:650}
+.states :is(a,button){display:inline-block;color:var(--muted);font-weight:500;padding:2px 0;border-bottom:2px solid transparent}
+.states :is(a,button):hover{color:var(--ink)}
+.states :is(a,button).on{color:var(--accent-ink);border-bottom-color:var(--accent);font-weight:650}
 .states .mono{font-size:11px;margin-left:3px}
 .tool-right{margin-left:auto;display:flex;gap:12px;align-items:center}
 label.avail{display:flex;gap:6px;align-items:center;color:var(--muted);cursor:pointer;user-select:none}
 label.avail input{accent-color:var(--accent)}
 .subtabs{display:flex;gap:8px}
-.subtabs button{padding:2px 9px;border:1px solid var(--hair);border-radius:99px;color:var(--muted);font-size:12px}
-.subtabs button.on{background:var(--chip);color:var(--ink);border-color:transparent;font-weight:600}
+.subtabs :is(a,button){display:inline-block;padding:2px 9px;border:1px solid var(--hair);border-radius:99px;color:var(--muted);font-size:12px}
+.subtabs :is(a,button).on{background:var(--chip);color:var(--ink);border-color:transparent;font-weight:600}
 
 /* ---------- ledger table ---------- */
 .tablewrap{background:var(--surface);border:1px solid var(--hair);border-radius:10px;

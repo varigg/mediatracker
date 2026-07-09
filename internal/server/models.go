@@ -255,11 +255,15 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 		states = append(states, StateTab{State: st, Label: stateNames[st], Count: n, Active: f.State == st})
 	}
 
-	density, ok, err := s.deps.Store.GetSetting(ctx, "row_density")
+	density, _, err := s.deps.Store.GetSetting(ctx, "row_density")
 	if err != nil {
 		return TabData{}, err
 	}
-	if !ok || density == "" {
+	// Whitelist valid density values; default to "l" for invalid or unset
+	switch density {
+	case "s", "m", "l":
+		// Valid
+	default:
 		density = "l"
 	}
 

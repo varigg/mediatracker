@@ -150,3 +150,20 @@ func TestTabHTMXFragment(t *testing.T) {
 		t.Error("fragment missing table content")
 	}
 }
+
+func TestTabDensityWhitelist(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	ctx := context.Background()
+	// Set a bogus density value in the store
+	if err := st.SetSetting(ctx, "row_density", "gigantic"); err != nil {
+		t.Fatalf("SetSetting: %v", err)
+	}
+	_, body := get(t, srv, "/games")
+	if !strings.Contains(body, "density-l") {
+		t.Error("body missing density-l (invalid value should default to l)")
+	}
+	if strings.Contains(body, "density-gigantic") {
+		t.Error("body contains density-gigantic (invalid value should be rejected)")
+	}
+}
