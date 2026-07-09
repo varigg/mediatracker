@@ -25,12 +25,15 @@ func New(d Deps) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(assetsFS())))
-	// Read-only views (this session); mutations land in M6b.
 	mux.HandleFunc("GET /{$}", s.home)
 	mux.HandleFunc("GET /movies-tv", s.tab("movies-tv"))
 	mux.HandleFunc("GET /books", s.tab("books"))
 	mux.HandleFunc("GET /games", s.tab("games"))
 	mux.HandleFunc("GET /items/{id}", s.detail)
+	mux.HandleFunc("POST /items/{id}/state", s.updateState)
+	mux.HandleFunc("POST /items/{id}/review", s.updateReview)
+	mux.HandleFunc("PUT /items/{id}/notes", s.updateNotes)
+	mux.HandleFunc("POST /items/{id}/notes/preview", s.previewNotes)
 	mux.HandleFunc("GET /covers/{name}", s.cover)
 	return mux
 }

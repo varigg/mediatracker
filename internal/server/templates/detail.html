@@ -1,5 +1,8 @@
-{{define "content"}}
+{{define "content"}}<div id="detail-body">{{template "detail-body" .}}</div>{{end}}
+
+{{define "detail-body"}}
 <a class="back" href="/{{.Group}}">← Back to {{.GroupLabel}}</a>
+{{if .Flash}}<div class="flash">{{if eq .Flash "added"}}Added to your library.{{else if eq .Flash "duplicate"}}Already in your library — here it is.{{end}}</div>{{end}}
 <div class="detail">
  <div class="dcoverwrap">{{template "bigcover" .Cover}}</div>
  <div>
@@ -7,14 +10,28 @@
   <div class="dsub mono"><span class="typechip {{.Item.MediaType}}">{{.TypeChip}}</span>{{if .Item.ReleaseYear}} · {{.Item.ReleaseYear}}{{end}}{{if .Genres}} · {{.Genres}}{{end}} · <span class="state {{.Item.State}}">{{.StateLabel}}</span>{{if .Item.CompletedAt}} · completed {{.Item.CompletedAt}}{{end}}</div>
 
   <div class="dsection"><h3>Status</h3><div class="transitions">
-   {{range .Transitions}}<button class="tbtn {{if .Primary}}primary{{end}}" disabled title="Interactive in the next milestone">{{.Label}}</button>{{end}}
+   {{range .Transitions}}
+   <form hx-post="/items/{{$.Item.ID}}/state" hx-target="#detail-body" style="display:inline">
+    <input type="hidden" name="to" value="{{.To}}">
+    <button class="tbtn {{if .Primary}}primary{{end}}">{{.Label}}</button>
+   </form>
+   {{end}}
   </div></div>
 
   {{if .Terminal}}
   <div class="dsection"><h3>Verdict</h3><div class="verdict">
-   <button class="{{if eq .Verdict "liked"}}on{{end}}" disabled title="Interactive in the next milestone">Liked</button>
-   <button class="{{if eq .Verdict "ok"}}on{{end}}" disabled title="Interactive in the next milestone">It was OK</button>
-   <button class="{{if eq .Verdict "disliked"}}on{{end}}" disabled title="Interactive in the next milestone">Disliked</button>
+   <form hx-post="/items/{{.Item.ID}}/review" hx-target="#detail-body" style="display:inline">
+    <input type="hidden" name="verdict" value="liked">
+    <button class="{{if eq .Verdict "liked"}}on{{end}}">Liked</button>
+   </form>
+   <form hx-post="/items/{{.Item.ID}}/review" hx-target="#detail-body" style="display:inline">
+    <input type="hidden" name="verdict" value="ok">
+    <button class="{{if eq .Verdict "ok"}}on{{end}}">It was OK</button>
+   </form>
+   <form hx-post="/items/{{.Item.ID}}/review" hx-target="#detail-body" style="display:inline">
+    <input type="hidden" name="verdict" value="disliked">
+    <button class="{{if eq .Verdict "disliked"}}on{{end}}">Disliked</button>
+   </form>
   </div></div>
   {{end}}
 
@@ -29,7 +46,13 @@
   </div>
 
   <div class="dsection notes"><h3>Notes</h3>
-   <div class="nprev">{{.NotesHTML}}</div>
+   <textarea id="ntext" name="notes" form="notesform">{{.Item.Notes}}</textarea>
+   <div id="notes-preview">{{if .NotesHTML}}<div class="nprev">{{.NotesHTML}}</div>{{end}}</div>
+   <form id="notesform" class="nbar">
+    <button class="tbtn" hx-post="/items/{{.Item.ID}}/notes/preview" hx-target="#notes-preview" hx-include="#ntext">Preview</button>
+    <button class="tbtn primary" hx-put="/items/{{.Item.ID}}/notes" hx-target="#detail-body" hx-include="#ntext">Save notes</button>
+    <span class="savehint">Markdown · explicit save, no autosave</span>
+   </form>
   </div>
 
   <div class="dsection"><h3>Details</h3><dl class="metagrid">
@@ -40,3 +63,7 @@
  </div>
 </div>
 {{end}}
+
+{{define "notes-preview"}}<div class="nprev">{{.}}</div>{{end}}
+
+{{define "inline-error"}}<div class="error">{{.}}</div>{{end}}

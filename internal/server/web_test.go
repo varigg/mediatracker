@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -239,5 +241,122 @@ func TestCoversServedAndHardened(t *testing.T) {
 		if resp.StatusCode == http.StatusOK {
 			t.Errorf("%s must not be served", bad)
 		}
+	}
+}
+
+func postForm(t *testing.T, srv *httptest.Server, method, path string, form url.Values, htmx bool) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(method, srv.URL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if htmx {
+		req.Header.Set("HX-Request", "true")
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp, string(b)
+}
+
+func TestTransitionHappyPath(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	resp, body := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/state", ids["game"]),
+		url.Values{"to": {"in_progress"}}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, "In progress") {
+		t.Error("fragment must reflect the new state")
+	}
+	it, err := st.GetItem(context.Background(), ids["game"])
+	if err != nil || it.State != store.StateInProgress {
+		t.Errorf("state = %v, err %v", it.State, err)
+	}
+}
+
+func TestTransitionRejectsIllegal(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	// book is done: done→abandoned is illegal (only done→in_progress).
+	resp, _ := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/state", ids["book"]),
+		url.Values{"to": {"abandoned"}}, true)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	it, _ := st.GetItem(context.Background(), ids["book"])
+	if it.State != store.StateDone {
+		t.Error("illegal transition must not change state")
+	}
+}
+
+func TestTransitionUnknownStateAndItem(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	if resp, _ := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/state", ids["game"]),
+		url.Values{"to": {"vaporized"}}, true); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("unknown state: %d, want 400", resp.StatusCode)
+	}
+	if resp, _ := postForm(t, srv, "POST", "/items/99999/state",
+		url.Values{"to": {"done"}}, true); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown item: %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestReviewOnTerminalItem(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	resp, body := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/review", ids["book"]),
+		url.Values{"verdict": {"liked"}}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %s", resp.StatusCode, body)
+	}
+	// non-terminal rejection
+	resp, _ = postForm(t, srv, "POST", fmt.Sprintf("/items/%d/review", ids["tv"]),
+		url.Values{"verdict": {"liked"}}, true)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("non-terminal review: %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestNotesSaveAndPreview(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	resp, _ := postForm(t, srv, "PUT", fmt.Sprintf("/items/%d/notes", ids["game"]),
+		url.Values{"notes": {"**bold** move"}}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("save: status = %d", resp.StatusCode)
+	}
+	it, _ := st.GetItem(context.Background(), ids["game"])
+	if it.Notes != "**bold** move" {
+		t.Errorf("notes = %q", it.Notes)
+	}
+	// preview renders markdown but must NOT save
+	resp, body := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/notes/preview", ids["game"]),
+		url.Values{"notes": {"*draft*"}}, true)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "<em>draft</em>") {
+		t.Fatalf("preview: %d %s", resp.StatusCode, body)
+	}
+	it, _ = st.GetItem(context.Background(), ids["game"])
+	if it.Notes != "**bold** move" {
+		t.Error("preview must not persist")
+	}
+}
+
+func TestNonHTMXMutationRedirects(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	resp, _ := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/state", ids["game"]),
+		url.Values{"to": {"in_progress"}}, false)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
 	}
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -115,27 +116,155 @@ func (s *site) tab(group string) http.HandlerFunc {
 }
 
 func (s *site) detail(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+	id, ok := s.itemID(w, r)
+	if !ok {
 		return
 	}
-	it, err := s.deps.Store.GetItem(r.Context(), id)
+	data, err := s.detailData(r, id, r.URL.Query().Get("flash"))
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			http.NotFound(w, r)
 			return
 		}
-		s.fail(w, "detail: get item", err)
-		return
-	}
-	data, err := s.detailData(r, it)
-	if err != nil {
 		s.fail(w, "detail: model", err)
 		return
 	}
 	if err := s.views.render(w, "detail.html", data); err != nil {
 		s.deps.Logger.Error("render detail", "error", err)
+	}
+}
+
+// itemID parses the path id; writes 400 and returns false on garbage.
+func (s *site) itemID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad item id", http.StatusBadRequest)
+		return 0, false
+	}
+	return id, true
+}
+
+// respondDetail re-renders the detail-body fragment (HTMX) or 303s back
+// to the detail page (plain form post) after a successful mutation.
+func (s *site) respondDetail(w http.ResponseWriter, r *http.Request, id int64) {
+	if r.Header.Get("HX-Request") != "true" {
+		http.Redirect(w, r, fmt.Sprintf("/items/%d", id), http.StatusSeeOther)
+		return
+	}
+	data, err := s.detailData(r, id, "")
+	if err != nil {
+		s.fail(w, "detail refresh", err)
+		return
+	}
+	if err := s.views.renderBlock(w, "detail.html", "detail-body", data); err != nil {
+		s.deps.Logger.Error("render detail fragment", "error", err)
+	}
+}
+
+// badRequest answers a user-input error: an inline-error fragment
+// swapped into the target for HTMX requests, plain text otherwise.
+func (s *site) badRequest(w http.ResponseWriter, r *http.Request, msg string) {
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		if err := s.views.executeBlock(w, "detail.html", "inline-error", msg); err != nil {
+			s.deps.Logger.Error("render inline error", "error", err)
+		}
+		return
+	}
+	http.Error(w, msg, http.StatusBadRequest)
+}
+
+// updateState handles POST /items/{id}/state (form: to=<state>).
+func (s *site) updateState(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.itemID(w, r)
+	if !ok {
+		return
+	}
+	to := store.State(r.FormValue("to"))
+	switch to {
+	case store.StateWantTo, store.StateInProgress, store.StateDone, store.StateAbandoned:
+	default:
+		s.badRequest(w, r, "unknown state: "+string(to))
+		return
+	}
+	if err := s.deps.Store.UpdateState(r.Context(), id, to); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			http.NotFound(w, r)
+		case errors.Is(err, store.ErrIllegalTransition):
+			s.badRequest(w, r, err.Error())
+		default:
+			s.fail(w, "update state", err)
+		}
+		return
+	}
+	s.respondDetail(w, r, id)
+}
+
+// updateReview handles POST /items/{id}/review (form: verdict=,
+// optional completed_at= defaulting to today).
+func (s *site) updateReview(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.itemID(w, r)
+	if !ok {
+		return
+	}
+	v := store.Verdict(r.FormValue("verdict"))
+	switch v {
+	case store.VerdictLiked, store.VerdictOK, store.VerdictDisliked:
+	default:
+		s.badRequest(w, r, "unknown verdict: "+string(v))
+		return
+	}
+	completedAt := r.FormValue("completed_at")
+	if completedAt == "" {
+		completedAt = time.Now().Format("2006-01-02")
+	}
+	if err := s.deps.Store.UpdateReview(r.Context(), id, v, completedAt); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			http.NotFound(w, r)
+		case errors.Is(err, store.ErrNotTerminal):
+			s.badRequest(w, r, err.Error())
+		default:
+			s.fail(w, "update review", err)
+		}
+		return
+	}
+	s.respondDetail(w, r, id)
+}
+
+// updateNotes handles PUT /items/{id}/notes (form: notes=).
+func (s *site) updateNotes(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.itemID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.deps.Store.UpdateNotes(r.Context(), id, r.FormValue("notes")); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			http.NotFound(w, r)
+		default:
+			s.fail(w, "update notes", err)
+		}
+		return
+	}
+	s.respondDetail(w, r, id)
+}
+
+// previewNotes handles POST /items/{id}/notes/preview (form: notes=):
+// renders the markdown preview fragment without touching the store.
+func (s *site) previewNotes(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.itemID(w, r); !ok {
+		return
+	}
+	html, err := renderMarkdown(r.FormValue("notes"))
+	if err != nil {
+		s.fail(w, "preview notes", err)
+		return
+	}
+	if err := s.views.renderBlock(w, "detail.html", "notes-preview", html); err != nil {
+		s.deps.Logger.Error("render notes preview", "error", err)
 	}
 }
 

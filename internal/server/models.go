@@ -425,14 +425,22 @@ type DetailData struct {
 	Avail       []AvailChip
 	NotesHTML   template.HTML
 	VerbFor     string // watch | read | play
+	Flash       string // "" | "added" | "duplicate"
 }
 
 // detailData builds the detail.html view model: transitions per
 // store.LegalTransitions, ratings, availability classified against a
 // subscribed-services map (same approach as tabData), and notes
-// rendered through goldmark.
-func (s *site) detailData(r *http.Request, it *store.MediaItem) (DetailData, error) {
+// rendered through goldmark. flash carries a one-shot banner code
+// ("added" | "duplicate") threaded through from the ?flash= query
+// param on the initial GET, or empty on a post-mutation refresh.
+func (s *site) detailData(r *http.Request, id int64, flash string) (DetailData, error) {
 	ctx := r.Context()
+
+	it, err := s.deps.Store.GetItem(ctx, id)
+	if err != nil {
+		return DetailData{}, err
+	}
 	group := groupFor(it.MediaType)
 
 	nav, err := s.nav(r, group)
@@ -514,5 +522,6 @@ func (s *site) detailData(r *http.Request, it *store.MediaItem) (DetailData, err
 		Avail:       chips,
 		NotesHTML:   notesHTML,
 		VerbFor:     verbFor[group],
+		Flash:       flash,
 	}, nil
 }

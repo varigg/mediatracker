@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -108,6 +109,13 @@ func (v *views) render(w http.ResponseWriter, page string, data any) error {
 // fragment path.
 func (v *views) renderBlock(w http.ResponseWriter, page, block string, data any) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return v.executeBlock(w, page, block, data)
+}
+
+// executeBlock writes one named {{define}} block to an arbitrary
+// io.Writer, without touching response headers — used when the caller
+// needs to set a non-200 status code before the body is written.
+func (v *views) executeBlock(w io.Writer, page, block string, data any) error {
 	t, ok := v.pages[page]
 	if !ok {
 		return fmt.Errorf("server: unknown page %q", page)
