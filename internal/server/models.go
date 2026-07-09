@@ -464,6 +464,10 @@ func (s *site) detailData(r *http.Request, it *store.MediaItem) (DetailData, err
 	chips := make([]AvailChip, 0, len(avail))
 	for _, a := range avail {
 		sv := svcByCode[a.ServiceSlug]
+		label := sv.Name
+		if label == "" {
+			label = a.ServiceSlug
+		}
 		class, kind := "", "not subscribed"
 		var url *string
 		switch {
@@ -473,7 +477,7 @@ func (s *site) detailData(r *http.Request, it *store.MediaItem) (DetailData, err
 		case sv.Subscribed:
 			class, kind = "sub", "subscribed"
 		}
-		chips = append(chips, AvailChip{Label: a.ServiceSlug, Kind: kind, Class: class, URL: url})
+		chips = append(chips, AvailChip{Label: label, Kind: kind, Class: class, URL: url})
 	}
 
 	legal := store.LegalTransitions(it.State)

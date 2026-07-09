@@ -185,7 +185,7 @@ func TestDetailRenders(t *testing.T) {
 	for _, needle := range []string{
 		"Hades",
 		"93/100",                        // rating display string
-		"steam",                         // availability badge
+		"Steam",                         // availability badge
 		"<strong>Coach Skelly</strong>", // markdown rendered
 		"Start",                         // legal transition from want_to
 	} {
