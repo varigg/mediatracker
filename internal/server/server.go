@@ -1,29 +1,41 @@
-// Package server is the HTTP layer. In M1 it exposes only the health
-// endpoint; M6 adds the full route surface.
+// Package server is the HTTP layer: the full route surface rendering
+// the M5 winner design via html/template + HTMX.
 package server
 
 import (
-	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/varigg/mediatracker/internal/store"
 )
 
-// Store is the subset of the store API the HTTP layer needs.
-type Store interface {
-	Ping(ctx context.Context) error
+// Deps wires everything the HTTP layer needs.
+type Deps struct {
+	Store           *store.Store
+	Logger          *slog.Logger
+	DataDir         string        // covers are served from {DataDir}/covers
+	RefreshInterval time.Duration // bounds the "newly available" window
 }
 
-func New(st Store, logger *slog.Logger) http.Handler {
+func New(d Deps) http.Handler {
+	v := newViews()
+	s := &site{deps: d, views: v}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		if err := st.Ping(r.Context()); err != nil {
-			logger.Error("health check failed", "error", err)
-			http.Error(w, "database unavailable", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
+	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(assetsFS())))
+	// Read-only views (this session); mutations land in M6b.
+	mux.HandleFunc("GET /{$}", s.home)
+	mux.HandleFunc("GET /movies-tv", s.tab("movies-tv"))
+	mux.HandleFunc("GET /books", s.tab("books"))
+	mux.HandleFunc("GET /games", s.tab("games"))
+	mux.HandleFunc("GET /items/{id}", s.detail)
+	mux.HandleFunc("GET /covers/{name}", s.cover)
 	return mux
+}
+
+type site struct {
+	deps  Deps
+	views *views
 }
