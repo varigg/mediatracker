@@ -213,6 +213,10 @@ func TestDistinctGenres(t *testing.T) {
 			[]string{"Drama"}},
 		{"game type only: no genres present", []MediaType{TypeGame}, "",
 			nil},
+		// Pins the state predicate: only Charlie is in_progress, so
+		// Bravo's Comedy must be excluded even with no type filter.
+		{"in_progress state, all types", nil, StateInProgress,
+			[]string{"Drama"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
