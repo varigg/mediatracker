@@ -1,1 +1,43 @@
-{{define "content"}}{{end}}
+{{define "content"}}
+<div class="homegrid">
+ <div>
+  <h2 class="sec">Continue</h2>
+  <div class="panel">
+   {{range .Continue}}
+    <div class="ph"><span class="tdot {{.DotClass}}"></span>{{.Label}}<span class="mono">{{len .Rows}}</span></div>
+    {{range .Rows}}
+    <a class="lrow {{.DotClass}}" href="/items/{{.ID}}">
+      {{template "thumb" .Cover}}
+      <span><span class="lt">{{.Title}}</span><br><span class="ls">{{.Sub}}</span></span>
+      <span class="right"><span class="state in_progress">{{.Right}}</span></span></a>
+    {{end}}
+   {{end}}
+  </div>
+ </div>
+ <div>
+  <h2 class="sec">Newly available on your services</h2>
+  <div class="panel">
+   {{range .Newly}}
+    <div class="ph"><span class="tdot {{.DotClass}}"></span>{{.Label}}<span class="mono">{{len .Rows}}</span></div>
+    {{range .Rows}}
+    <a class="lrow {{.DotClass}}" href="/items/{{.ID}}">
+      {{template "thumb" .Cover}}
+      <span><span class="lt">{{.Title}}</span><br><span class="ls">{{.Sub}}</span></span>
+      <span class="right mono">{{.Right}}</span></a>
+    {{end}}
+   {{end}}
+  </div>
+ </div>
+</div>
+<h2 class="sec">Library</h2>
+<div class="panel">
+ {{range .Library}}
+ <a class="libline {{.DotClass}}" href="/{{.Group}}">
+   <span class="g" style="display:flex;gap:8px;align-items:center"><span class="tdot {{.DotClass}}"></span>{{.Label}}</span>
+   <span class="mono">{{.WantTo}} want to</span><span class="mono">{{.InProgress}} in progress</span>
+   <span class="mono">{{.DoneN}} done</span><span class="mono" style="margin-left:auto">→</span></a>
+ {{end}}
+</div>
+{{end}}
+
+{{define "thumb"}}{{if .URL}}<span class="thumb"><img src="{{.URL}}" alt=""></span>{{else}}<span class="thumb" style="background-color:hsl({{.Hue}} 32% 40%)">{{.Monogram}}</span>{{end}}{{end}}
