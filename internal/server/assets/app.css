@@ -118,8 +118,8 @@ label.avail input{accent-color:var(--accent)}
 table{width:100%;border-collapse:collapse;min-width:760px}
 th{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
   text-align:left;padding:9px 12px;border-bottom:1px solid var(--hair);white-space:nowrap;font-weight:650}
-th button{color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:inline-flex;gap:4px}
-th button:hover{color:var(--ink)}
+th :is(a,button){color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:inline-flex;gap:4px}
+th :is(a,button):hover{color:var(--ink)}
 th .dir{opacity:.9}
 td{padding:6px 12px;border-bottom:1px solid var(--hair2);vertical-align:middle}
 tr:last-child td{border-bottom:none}

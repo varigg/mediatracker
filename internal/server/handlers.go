@@ -42,8 +42,7 @@ func (s *site) home(w http.ResponseWriter, r *http.Request) {
 	}
 	var lib []LibLine
 	for _, g := range []string{"movies-tv", "books", "games"} {
-		l := LibLine{Group: g, Label: groupLabels[g], DotClass: map[string]string{
-			"movies-tv": "video", "books": "book", "games": "game"}[g]}
+		l := LibLine{Group: g, Label: groupLabels[g], DotClass: groupDotClass[g]}
 		for _, mt := range groupTypes[g] {
 			l.WantTo += counts[mt][store.StateWantTo]
 			l.InProgress += counts[mt][store.StateInProgress]

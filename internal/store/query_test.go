@@ -177,6 +177,21 @@ func TestListItemsSortDirection(t *testing.T) {
 	}
 }
 
+func TestDefaultDir(t *testing.T) {
+	// title is the one ascending-by-default sort; everything else
+	// (including the empty/unset sort) defaults to descending. Pinned
+	// directly since buildListQuery's ORDER BY and internal/server's
+	// sortLink both derive their default from this single function.
+	cases := map[string]string{
+		"title": "asc", "": "desc", "added": "desc", "year": "desc", "rating": "desc",
+	}
+	for sort, want := range cases {
+		if got := DefaultDir(sort); got != want {
+			t.Errorf("DefaultDir(%q) = %q, want %q", sort, got, want)
+		}
+	}
+}
+
 func TestBuildListQueryNormalizesBogusDir(t *testing.T) {
 	// A hand-constructed filter bypassing ParseListFilter must not be
 	// able to inject into ORDER BY: bogus directions fall back to the

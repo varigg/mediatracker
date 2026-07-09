@@ -32,6 +32,13 @@ var groupLabels = map[string]string{
 	"movies-tv": "Movies & TV", "books": "Books", "games": "Games",
 }
 
+// groupDotClass maps a URL group to the CSS class of its status dot
+// (video | book | game) — one source shared by every view model that
+// renders a group's dot, rather than each redeclaring the same literal.
+var groupDotClass = map[string]string{
+	"movies-tv": "video", "books": "book", "games": "game",
+}
+
 // stateOrder fixes the left-to-right order of the toolbar's state tabs;
 // stateNames supplies their labels.
 var stateOrder = []store.State{
@@ -76,9 +83,8 @@ func (s *site) nav(r *http.Request, active string) (Nav, error) {
 type HomeRow struct {
 	ID       int64
 	Title    string
-	Sub      string // genres line, or "now on X"
+	Sub      string // caller-supplied subtitle line (genres, or a status blurb)
 	Right    string // right-aligned annotation
-	Group    string
 	DotClass string // video | book | game
 	Cover    *CoverRef
 }
@@ -211,14 +217,13 @@ func groupRows(items []store.MediaItem, sub func(store.MediaItem) (string, strin
 		g := groupFor(it.MediaType)
 		byGroup[g] = append(byGroup[g], HomeRow{
 			ID: it.ID, Title: it.Title, Sub: s, Right: right,
-			Group: g, DotClass: dotClassFor(it.MediaType), Cover: coverRef(it),
+			DotClass: dotClassFor(it.MediaType), Cover: coverRef(it),
 		})
 	}
 	var out []HomeGroup
 	for _, g := range []string{"movies-tv", "books", "games"} {
 		if rows := byGroup[g]; len(rows) > 0 {
-			out = append(out, HomeGroup{Label: groupLabels[g], DotClass: map[string]string{
-				"movies-tv": "video", "books": "book", "games": "game"}[g], Rows: rows})
+			out = append(out, HomeGroup{Label: groupLabels[g], DotClass: groupDotClass[g], Rows: rows})
 		}
 	}
 	return out

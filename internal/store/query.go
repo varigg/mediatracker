@@ -84,6 +84,19 @@ func ParseListFilter(v url.Values) (ListFilter, error) {
 	return f, nil
 }
 
+// DefaultDir returns the default sort direction for a sort column: title
+// sorts ascending by default, every other sort (added, year, rating, and
+// the empty/unset sort) sorts descending. The single source for that
+// rule — buildListQuery's ORDER BY and the HTTP layer's sort-link
+// direction (internal/server's sortLink) both consume it, so the SQL and
+// the toolbar glyph never drift apart.
+func DefaultDir(sort string) string {
+	if sort == "title" {
+		return "asc"
+	}
+	return "desc"
+}
+
 // buildListQuery translates a ListFilter into SQL + args.
 func buildListQuery(f ListFilter) (string, []any) {
 	var where []string
@@ -118,10 +131,7 @@ func buildListQuery(f ListFilter) (string, []any) {
 	// a hand-constructed ListFilter bypassing ParseListFilter — falls
 	// back to the sort's default, so arbitrary strings can never reach
 	// the SQL below.
-	def := "desc"
-	if f.Sort == "title" {
-		def = "asc"
-	}
+	def := DefaultDir(f.Sort)
 	dir := f.Dir
 	if dir != "asc" && dir != "desc" {
 		dir = def

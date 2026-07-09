@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -11,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -106,7 +104,6 @@ func run() error {
 	}
 
 	mux := http.NewServeMux()
-	registerDebugRoutes(mux, deps, refresher)
 	mux.Handle("/", server.New(server.Deps{
 		Store:           st,
 		Logger:          logger,
@@ -133,61 +130,4 @@ func run() error {
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}
-}
-
-// registerDebugRoutes wires temporary, unauthenticated endpoints for
-// exercising the add/refresh pipelines before M6 builds the real HTTP
-// route surface. Delete this function and its call site once M6 lands.
-func registerDebugRoutes(mux *http.ServeMux, deps ingest.Deps, refresher *ingest.Refresher) {
-	mux.HandleFunc("GET /debug/search", func(w http.ResponseWriter, r *http.Request) {
-		mediaType := store.MediaType(r.URL.Query().Get("type"))
-		p, err := deps.Registry.Get(mediaType)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		candidates, err := p.Search(r.Context(), r.URL.Query().Get("q"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(candidates)
-	})
-
-	mux.HandleFunc("POST /debug/add", func(w http.ResponseWriter, r *http.Request) {
-		mediaType := store.MediaType(r.URL.Query().Get("type"))
-		item, _, err := deps.Add(r.Context(), mediaType, r.URL.Query().Get("provider_id"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(item)
-	})
-
-	mux.HandleFunc("POST /debug/refresh", func(w http.ResponseWriter, r *http.Request) {
-		sum, err := refresher.RunCycle(r.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(sum)
-	})
-
-	mux.HandleFunc("POST /debug/refresh/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-		if err != nil {
-			http.Error(w, "invalid id", http.StatusBadRequest)
-			return
-		}
-		outcome, err := refresher.RefreshItem(r.Context(), id)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(outcome)
-	})
 }
