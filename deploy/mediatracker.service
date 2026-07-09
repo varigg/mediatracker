@@ -1,0 +1,22 @@
+# systemd unit for mediatracker. Install to /etc/systemd/system/ and see
+# the README's "Run as a service" section for the full setup sequence
+# (dedicated user, binary placement, enable/start, logs).
+[Unit]
+Description=mediatracker media tracker
+After=network.target
+
+[Service]
+Type=simple
+User=mediatracker
+ExecStart=/usr/local/bin/mediatracker -data /var/lib/mediatracker
+Restart=on-failure
+StateDirectory=mediatracker
+
+# Hardening: keep to well-understood directives. StateDirectory above
+# grants the one write path this service needs under ProtectSystem=strict.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
