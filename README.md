@@ -63,14 +63,19 @@ go install github.com/varigg/mediatracker/cmd/mediatracker@latest
 ```
 
 Either way you end up with a single `mediatracker` binary and nothing
-else to install — no Node toolchain, no external services.
+else to install — no Node toolchain, no external services. Clone+build
+drops it in the repo root as `./mediatracker`; `go install` puts it in
+`$(go env GOPATH)/bin` (usually `~/go/bin`), so it's `mediatracker` if
+that directory is on your `PATH`.
 
 ## First run
 
 ```sh
-./mediatracker                    # data dir defaults to ~/.local/share/mediatracker
-./mediatracker -data /path/to/dir # or pick one explicitly
+mediatracker                     # data dir defaults to ~/.local/share/mediatracker
+mediatracker -data /path/to/dir  # or pick one explicitly
 ```
+
+(From a clone+build, that's `./mediatracker` in the repo root.)
 
 `-data` is the binary's only flag. On startup it creates the data
 directory if missing and opens/migrates `app.db` (SQLite, WAL mode)
@@ -137,13 +142,20 @@ user, and keeps its data under `/var/lib/mediatracker` via
 `StateDirectory` (systemd creates and owns that directory for you).
 
 ```sh
-# one-time setup
+# one-time setup (from the repo root of a clone)
 sudo useradd --system --home-dir /var/lib/mediatracker --shell /usr/sbin/nologin mediatracker
 sudo cp mediatracker /usr/local/bin/mediatracker
 sudo cp deploy/mediatracker.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now mediatracker
 ```
+
+If you installed via `go install` instead, copy the binary from
+`$(go env GOPATH)/bin` — `sudo cp "$(go env GOPATH)/bin/mediatracker"
+/usr/local/bin/mediatracker` — and fetch the unit file from the repo,
+since you won't have a `deploy/` directory locally (clone the repo, or
+`curl -fLO https://raw.githubusercontent.com/varigg/mediatracker/main/deploy/mediatracker.service`
+and copy that into `/etc/systemd/system/`).
 
 Put your `config.toml` (with API keys) in `/var/lib/mediatracker/` —
 create it as root or `chown` it to `mediatracker` after writing it, then
@@ -231,7 +243,7 @@ gracefully around any that aren't configured.
 
 The **Settings** page (`/settings`) is the first stop: it shows, per
 metadata provider, whether it's configured and its last successful
-fetch; per availability catalog (Game Pass, PS+, Steam owned), the
+fetch; per availability catalog (Game Pass, PS Plus, Steam owned), the
 snapshot's age; and a count of stale availability rows (fetched more
 than 2× `refresh_interval` ago). It also has a manual "Refresh now"
 button.
