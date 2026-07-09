@@ -31,6 +31,7 @@ type ListFilter struct {
 	Genre     string
 	Available bool
 	Sort      string // "" | "added" | "year" | "rating" | "title"
+	Dir       string // "" | "asc" | "desc"; "" uses the sort's default direction
 }
 
 // ParseListFilter translates URL query parameters into a ListFilter.
@@ -73,6 +74,13 @@ func ParseListFilter(v url.Values) (ListFilter, error) {
 		return ListFilter{}, fmt.Errorf("%w: invalid sort %q", ErrInvalidQuery, sort)
 	}
 
+	switch dir := v.Get("dir"); dir {
+	case "", "asc", "desc":
+		f.Dir = dir
+	default:
+		return ListFilter{}, fmt.Errorf("%w: invalid dir %q", ErrInvalidQuery, dir)
+	}
+
 	return f, nil
 }
 
@@ -106,16 +114,25 @@ func buildListQuery(f ListFilter) (string, []any) {
 			WHERE a.item_id = mi.id AND (s.subscribed = 1 OR a.kind = 'owned'))`)
 	}
 
+	dir := f.Dir
+	if dir == "" {
+		if f.Sort == "title" {
+			dir = "asc"
+		} else {
+			dir = "desc"
+		}
+	}
+	up := strings.ToUpper(dir)
 	var orderBy string
 	switch f.Sort {
 	case "", "added":
-		orderBy = "mi.added_at DESC, mi.id DESC"
+		orderBy = "mi.added_at " + up + ", mi.id " + up
 	case "year":
-		orderBy = "mi.release_year DESC NULLS LAST, mi.title COLLATE NOCASE ASC"
+		orderBy = "mi.release_year " + up + " NULLS LAST, mi.title COLLATE NOCASE ASC"
 	case "rating":
-		orderBy = "r.avg_score DESC NULLS LAST, mi.title COLLATE NOCASE ASC"
+		orderBy = "r.avg_score " + up + " NULLS LAST, mi.title COLLATE NOCASE ASC"
 	case "title":
-		orderBy = "mi.title COLLATE NOCASE ASC"
+		orderBy = "mi.title COLLATE NOCASE " + up
 	}
 
 	q := selectItemList

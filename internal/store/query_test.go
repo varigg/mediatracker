@@ -139,3 +139,39 @@ func TestParseListFilterRejectsInvalidParams(t *testing.T) {
 		}
 	}
 }
+
+func TestParseListFilterDir(t *testing.T) {
+	f, err := ParseListFilter(url.Values{"sort": {"year"}, "dir": {"asc"}})
+	if err != nil || f.Dir != "asc" {
+		t.Fatalf("ParseListFilter dir=asc = (%+v, %v)", f, err)
+	}
+	if _, err := ParseListFilter(url.Values{"dir": {"sideways"}}); !errors.Is(err, ErrInvalidQuery) {
+		t.Errorf("invalid dir: err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestListItemsSortDirection(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	seedListFixture(t, s)
+
+	items, err := s.ListItems(ctx, ListFilter{Sort: "year", Dir: "asc"})
+	if err != nil {
+		t.Fatalf("ListItems: %v", err)
+	}
+	got := titles(items)
+	want := []string{"Bravo", "Alpha", "Charlie", "Delta"} // 1999,2001,2010,2020
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("year asc: got %v, want %v", got, want)
+		}
+	}
+
+	items, err = s.ListItems(ctx, ListFilter{Sort: "title", Dir: "desc"})
+	if err != nil {
+		t.Fatalf("ListItems: %v", err)
+	}
+	if got := titles(items); got[0] != "Delta" {
+		t.Fatalf("title desc: got %v, want Delta first", got)
+	}
+}
