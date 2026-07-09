@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"html/template"
 	"math"
 	"net/http"
 	"strings"
@@ -222,8 +221,7 @@ type TabData struct {
 	Filter  store.ListFilter
 	Rows    []TabRow
 	Total   int
-	Density string       // s|m|l
-	Query   template.URL // current query string minus state, for state links
+	Density string // s|m|l
 }
 
 // tabData builds the tab.html view model: state-tab counts (summed
@@ -336,9 +334,6 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 		})
 	}
 
-	q := r.URL.Query()
-	q.Del("state")
-
 	return TabData{
 		Nav:     nav,
 		Group:   group,
@@ -349,6 +344,5 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 		Rows:    rows,
 		Total:   len(rows),
 		Density: density,
-		Query:   template.URL(q.Encode()),
 	}, nil
 }
