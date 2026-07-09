@@ -55,5 +55,3 @@
 {{end}}
 
 {{define "th"}}<th><button type="button" hx-get="{{.Href}}" hx-target="#tab-body" hx-push-url="true">{{.Label}}<span class="dir">{{.Glyph}}</span></button></th>{{end}}
-
-{{define "thumb"}}{{if .URL}}<span class="thumb"><img src="{{.URL}}" alt=""></span>{{else}}<span class="thumb" style="background-color:hsl({{.Hue}} 32% 40%)">{{.Monogram}}</span>{{end}}{{end}}

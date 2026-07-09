@@ -1,7 +1,11 @@
 package server
 
 import (
+	"errors"
 	"net/http"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -111,9 +115,39 @@ func (s *site) tab(group string) http.HandlerFunc {
 }
 
 func (s *site) detail(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	it, err := s.deps.Store.GetItem(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		s.fail(w, "detail: get item", err)
+		return
+	}
+	data, err := s.detailData(r, it)
+	if err != nil {
+		s.fail(w, "detail: model", err)
+		return
+	}
+	if err := s.views.render(w, "detail.html", data); err != nil {
+		s.deps.Logger.Error("render detail", "error", err)
+	}
 }
 
+// coverName is the only shape covers/ serves: "{item id}.jpg", checked
+// before the filesystem is touched (also blocks path traversal).
+var coverName = regexp.MustCompile(`^[0-9]+\.jpg$`)
+
 func (s *site) cover(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	name := r.PathValue("name")
+	if !coverName.MatchString(name) {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, filepath.Join(s.deps.DataDir, "covers", name))
 }

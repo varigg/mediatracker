@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -165,5 +168,76 @@ func TestTabDensityWhitelist(t *testing.T) {
 	}
 	if strings.Contains(body, "density-gigantic") {
 		t.Error("body contains density-gigantic (invalid value should be rejected)")
+	}
+}
+
+func TestDetailRenders(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	ctx := context.Background()
+	if err := st.UpdateNotes(ctx, ids["game"], "Heat 16. **Coach Skelly** believes."); err != nil {
+		t.Fatal(err)
+	}
+	resp, body := get(t, srv, fmt.Sprintf("/items/%d", ids["game"]))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, needle := range []string{
+		"Hades",
+		"93/100",                        // rating display string
+		"steam",                         // availability badge
+		"<strong>Coach Skelly</strong>", // markdown rendered
+		"Start",                         // legal transition from want_to
+	} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("detail missing %q", needle)
+		}
+	}
+	if strings.Contains(body, "Re-watch") { // done-only transition must not render for want_to
+		t.Error("illegal transition rendered")
+	}
+}
+
+func TestDetailNotFound(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	resp, _ := get(t, srv, "/items/99999")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestNotesEscapeRawHTML(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	if err := st.UpdateNotes(context.Background(), ids["game"], `<script>alert(1)</script>`); err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, srv, fmt.Sprintf("/items/%d", ids["game"]))
+	if strings.Contains(body, "<script>alert(1)</script>") {
+		t.Error("raw HTML in notes must be escaped")
+	}
+}
+
+func TestCoversServedAndHardened(t *testing.T) {
+	srv, st, dataDir := newTestServer(t)
+	ids := seedWeb(t, st)
+	dir := filepath.Join(dataDir, "covers")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	name := fmt.Sprintf("%d.jpg", ids["game"])
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("\xff\xd8fakejpeg"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resp, _ := get(t, srv, "/covers/"+name)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("cover: status = %d", resp.StatusCode)
+	}
+	for _, bad := range []string{"/covers/../app.db", "/covers/evil.txt", "/covers/1.png"} {
+		resp, _ := get(t, srv, bad)
+		if resp.StatusCode == http.StatusOK {
+			t.Errorf("%s must not be served", bad)
+		}
 	}
 }

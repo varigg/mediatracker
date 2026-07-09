@@ -1,0 +1,3 @@
+{{define "thumb"}}{{if .URL}}<span class="thumb"><img src="{{.URL}}" alt=""></span>{{else}}<span class="thumb" style="background-color:hsl({{.Hue}} 32% 40%)">{{.Monogram}}</span>{{end}}{{end}}
+
+{{define "bigcover"}}{{if .URL}}<div class="bigcover"><img src="{{.URL}}" alt=""></div>{{else}}<div class="bigcover" style="background-color:hsl({{.Hue}} 32% 40%)">{{.Monogram}}</div>{{end}}{{end}}

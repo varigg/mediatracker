@@ -1,12 +1,16 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"html/template"
 	"math"
 	"net/http"
 	"strings"
 
 	"github.com/varigg/mediatracker/internal/store"
+	"github.com/yuin/goldmark"
 )
 
 // Nav is the layout-level view model: active tab and per-group counts.
@@ -344,5 +348,167 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 		Rows:    rows,
 		Total:   len(rows),
 		Density: density,
+	}, nil
+}
+
+// verbFor names the "where to ___" verb per group (spec's mock: watch |
+// read | play).
+var verbFor = map[string]string{
+	"movies-tv": "watch",
+	"books":     "read",
+	"games":     "play",
+}
+
+// transitionLabel reproduces the mock/M4 semantics for one legal
+// lifecycle move's button text.
+func transitionLabel(from, to store.State) string {
+	switch to {
+	case store.StateWantTo:
+		return "Move to Want to"
+	case store.StateInProgress:
+		if from == store.StateDone {
+			return "Re-watch / resume"
+		}
+		return "Start"
+	case store.StateDone:
+		return "Mark done"
+	case store.StateAbandoned:
+		return "Abandon"
+	default:
+		return string(to)
+	}
+}
+
+// renderMarkdown converts notes to HTML via goldmark's default config,
+// which escapes raw HTML — notes are user-authored, untrusted text.
+func renderMarkdown(src string) (template.HTML, error) {
+	var buf bytes.Buffer
+	if err := goldmark.New().Convert([]byte(src), &buf); err != nil {
+		return "", fmt.Errorf("server: render notes: %w", err)
+	}
+	return template.HTML(buf.String()), nil
+}
+
+// TransitionButton is one lifecycle-move control in the Status section.
+type TransitionButton struct {
+	To      store.State
+	Label   string
+	Primary bool
+}
+
+// RatingCard is one Ratings-section card.
+type RatingCard struct {
+	Display, Source string
+	URL             *string
+}
+
+// AvailChip is one Availability-section chip.
+type AvailChip struct {
+	Label, Kind, Class string
+	URL                *string
+}
+
+// DetailData is the detail.html view model.
+type DetailData struct {
+	Nav         Nav
+	Item        *store.MediaItem
+	Group       string
+	GroupLabel  string
+	TypeChip    string
+	StateLabel  string
+	Genres      string
+	Verdict     string
+	Cover       *CoverRef
+	Transitions []TransitionButton
+	Terminal    bool
+	Ratings     []RatingCard
+	Avail       []AvailChip
+	NotesHTML   template.HTML
+	VerbFor     string // watch | read | play
+}
+
+// detailData builds the detail.html view model: transitions per
+// store.LegalTransitions, ratings, availability classified against a
+// subscribed-services map (same approach as tabData), and notes
+// rendered through goldmark.
+func (s *site) detailData(r *http.Request, it *store.MediaItem) (DetailData, error) {
+	ctx := r.Context()
+	group := groupFor(it.MediaType)
+
+	nav, err := s.nav(r, group)
+	if err != nil {
+		return DetailData{}, err
+	}
+
+	ratings, err := s.deps.Store.GetRatings(ctx, it.ID)
+	if err != nil {
+		return DetailData{}, err
+	}
+	rcards := make([]RatingCard, 0, len(ratings))
+	for _, rt := range ratings {
+		rcards = append(rcards, RatingCard{Display: rt.Display, Source: rt.Source, URL: rt.URL})
+	}
+
+	avail, err := s.deps.Store.GetAvailability(ctx, it.ID)
+	if err != nil {
+		return DetailData{}, err
+	}
+	services, err := s.deps.Store.ListServices(ctx)
+	if err != nil {
+		return DetailData{}, err
+	}
+	svcByCode := make(map[string]store.Service, len(services))
+	for _, sv := range services {
+		svcByCode[sv.Slug] = sv
+	}
+	chips := make([]AvailChip, 0, len(avail))
+	for _, a := range avail {
+		sv := svcByCode[a.ServiceSlug]
+		class, kind := "", "not subscribed"
+		var url *string
+		switch {
+		case a.Kind == store.KindOwned:
+			class, kind = "own", "owned · store page ↗"
+			url = a.URL
+		case sv.Subscribed:
+			class, kind = "sub", "subscribed"
+		}
+		chips = append(chips, AvailChip{Label: a.ServiceSlug, Kind: kind, Class: class, URL: url})
+	}
+
+	legal := store.LegalTransitions(it.State)
+	transitions := make([]TransitionButton, 0, len(legal))
+	for i, to := range legal {
+		transitions = append(transitions, TransitionButton{
+			To: to, Label: transitionLabel(it.State, to), Primary: i == 0,
+		})
+	}
+
+	notesHTML, err := renderMarkdown(it.Notes)
+	if err != nil {
+		return DetailData{}, err
+	}
+
+	verdict := ""
+	if it.Verdict != nil {
+		verdict = string(*it.Verdict)
+	}
+
+	return DetailData{
+		Nav:         nav,
+		Item:        it,
+		Group:       group,
+		GroupLabel:  groupLabels[group],
+		TypeChip:    strings.ToUpper(string(it.MediaType)),
+		StateLabel:  stateNames[it.State],
+		Genres:      strings.Join(it.Genres, " · "),
+		Verdict:     verdict,
+		Cover:       coverRef(it),
+		Transitions: transitions,
+		Terminal:    it.State == store.StateDone || it.State == store.StateAbandoned,
+		Ratings:     rcards,
+		Avail:       chips,
+		NotesHTML:   notesHTML,
+		VerbFor:     verbFor[group],
 	}, nil
 }
