@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/varigg/mediatracker/internal/ingest"
 	"github.com/varigg/mediatracker/internal/store"
 )
 
@@ -266,6 +268,59 @@ func (s *site) previewNotes(w http.ResponseWriter, r *http.Request) {
 	if err := s.views.renderBlock(w, "detail.html", "notes-preview", html); err != nil {
 		s.deps.Logger.Error("render notes preview", "error", err)
 	}
+}
+
+// refreshItem handles POST /items/{id}/refresh: a manual per-item
+// refresh via the same logic RunCycle uses per item.
+func (s *site) refreshItem(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.itemID(w, r)
+	if !ok {
+		return
+	}
+	if _, err := s.deps.Refresher.RefreshItem(r.Context(), id); err != nil {
+		switch {
+		case errors.Is(err, ingest.ErrItemNotActive):
+			s.badRequest(w, r, err.Error())
+		case errors.Is(err, store.ErrNotFound):
+			http.NotFound(w, r)
+		default:
+			s.fail(w, "refresh item", err)
+		}
+		return
+	}
+	s.respondDetail(w, r, id)
+}
+
+// refreshAll handles POST /refresh: kicks off an async global refresh
+// cycle if one isn't already running. It responds immediately (202)
+// and never blocks on the cycle itself.
+func (s *site) refreshAll(w http.ResponseWriter, r *http.Request) {
+	s.refreshMu.Lock()
+	if s.refreshing {
+		s.refreshMu.Unlock()
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte("<span>Refresh already running</span>"))
+		return
+	}
+	s.refreshing = true
+	s.refreshMu.Unlock()
+
+	go func() {
+		defer func() {
+			s.refreshMu.Lock()
+			s.refreshing = false
+			s.refreshMu.Unlock()
+		}()
+		// context.Background(), not r.Context(): the cycle must outlive
+		// this request — it keeps running after the response is sent.
+		if _, err := s.deps.Refresher.RunCycle(context.Background()); err != nil {
+			s.deps.Logger.Error("global refresh cycle failed", "error", err)
+		}
+	}()
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte("<span>Refresh started</span>"))
 }
 
 // coverName is the only shape covers/ serves: "{item id}.jpg", checked

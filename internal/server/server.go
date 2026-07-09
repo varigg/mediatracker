@@ -5,8 +5,10 @@ package server
 import (
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/varigg/mediatracker/internal/ingest"
 	"github.com/varigg/mediatracker/internal/store"
 )
 
@@ -16,6 +18,7 @@ type Deps struct {
 	Logger          *slog.Logger
 	DataDir         string        // covers are served from {DataDir}/covers
 	RefreshInterval time.Duration // bounds the "newly available" window
+	Refresher       *ingest.Refresher
 }
 
 func New(d Deps) http.Handler {
@@ -34,6 +37,8 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("POST /items/{id}/review", s.updateReview)
 	mux.HandleFunc("PUT /items/{id}/notes", s.updateNotes)
 	mux.HandleFunc("POST /items/{id}/notes/preview", s.previewNotes)
+	mux.HandleFunc("POST /items/{id}/refresh", s.refreshItem)
+	mux.HandleFunc("POST /refresh", s.refreshAll)
 	mux.HandleFunc("GET /covers/{name}", s.cover)
 	return mux
 }
@@ -41,4 +46,7 @@ func New(d Deps) http.Handler {
 type site struct {
 	deps  Deps
 	views *views
+
+	refreshMu  sync.Mutex
+	refreshing bool
 }

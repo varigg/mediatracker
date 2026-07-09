@@ -361,6 +361,67 @@ func TestNonHTMXMutationRedirects(t *testing.T) {
 	}
 }
 
+func TestItemRefresh(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	before, err := st.GetItem(context.Background(), ids["movie"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.RefreshedAt != nil {
+		t.Fatalf("refreshed_at = %v, want nil before refresh", before.RefreshedAt)
+	}
+	resp, body := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/refresh", ids["movie"]),
+		url.Values{}, true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %s", resp.StatusCode, body)
+	}
+	after, err := st.GetItem(context.Background(), ids["movie"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.RefreshedAt == nil {
+		t.Error("refreshed_at still nil after refresh")
+	}
+}
+
+func TestItemRefreshFrozen(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	ids := seedWeb(t, st)
+	resp, _ := postForm(t, srv, "POST", fmt.Sprintf("/items/%d/refresh", ids["book"]),
+		url.Values{}, true)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestItemRefreshNotFound(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	resp, _ := postForm(t, srv, "POST", "/items/99999/refresh", url.Values{}, true)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestGlobalRefreshAccepted(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	resp, body := postForm(t, srv, "POST", "/refresh", url.Values{}, true)
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202, body %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, "Refresh") {
+		t.Errorf("body = %q, want it to mention Refresh", body)
+	}
+	// A second, immediate POST must also succeed regardless of whether
+	// the first cycle has finished — no strict sequencing assumed.
+	resp2, _ := postForm(t, srv, "POST", "/refresh", url.Values{}, true)
+	if resp2.StatusCode != http.StatusAccepted {
+		t.Errorf("second refresh status = %d, want 202", resp2.StatusCode)
+	}
+}
+
 func TestLayoutEnables4xxSwaps(t *testing.T) {
 	srv, st, _ := newTestServer(t)
 	seedWeb(t, st)

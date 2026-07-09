@@ -59,7 +59,9 @@
    <dt>Provider</dt><dd class="mono">{{.Item.Provider}} · id {{.Item.ProviderID}}</dd>
    <dt>Added</dt><dd class="mono">{{.Item.AddedAt}}</dd>
    <dt>Refreshed</dt><dd class="mono">{{if .Item.RefreshedAt}}{{.Item.RefreshedAt}}{{else}}never{{end}}</dd>
-  </dl></div>
+  </dl>
+  <form hx-post="/items/{{.Item.ID}}/refresh" hx-target="#detail-body"><button class="tbtn">Refresh now</button></form>
+  </div>
  </div>
 </div>
 {{end}}

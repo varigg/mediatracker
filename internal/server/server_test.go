@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/varigg/mediatracker/internal/ingest"
+	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
 )
 
@@ -24,11 +26,20 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	refresher := ingest.NewRefresher(ingest.Deps{
+		Store:      st,
+		Registry:   providers.NewRegistry(),
+		Logger:     logger,
+		DataDir:    dataDir,
+		HTTPClient: http.DefaultClient,
+	}, time.Hour)
 	srv := httptest.NewServer(New(Deps{
 		Store:           st,
-		Logger:          slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		Logger:          logger,
 		DataDir:         dataDir,
 		RefreshInterval: 7 * 24 * time.Hour,
+		Refresher:       refresher,
 	}))
 	t.Cleanup(srv.Close)
 	return srv, st, dataDir

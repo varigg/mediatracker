@@ -98,6 +98,7 @@ func run() error {
 		Logger:          logger,
 		DataDir:         *dataDir,
 		RefreshInterval: cfg.RefreshInterval.Duration,
+		Refresher:       refresher,
 	}))
 
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: mux}
