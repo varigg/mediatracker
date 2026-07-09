@@ -360,3 +360,18 @@ func TestNonHTMXMutationRedirects(t *testing.T) {
 		t.Fatalf("status = %d, want 303", resp.StatusCode)
 	}
 }
+
+func TestLayoutEnables4xxSwaps(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	seedWeb(t, st)
+	resp, body := get(t, srv, "/")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "htmx-config") {
+		t.Error("layout must include htmx-config meta tag")
+	}
+	if !strings.Contains(body, `"4..","swap":true`) {
+		t.Error("htmx-config must enable swaps for 4xx responses")
+	}
+}

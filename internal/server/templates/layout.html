@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>mediatracker</title>
 <link rel="stylesheet" href="/assets/app.css">
+<!-- 4xx bodies are server-rendered inline-error fragments and must swap into the target; 5xx are unrendered system-failure text and must not replace page content. -->
+<meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"4..","swap":true,"error":true},{"code":"5..","swap":false,"error":true}]}'>
 <script src="/assets/htmx.min.js" defer></script>
 </head>
 <body>
