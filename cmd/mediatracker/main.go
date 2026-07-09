@@ -144,7 +144,7 @@ func registerDebugRoutes(mux *http.ServeMux, deps ingest.Deps, refresher *ingest
 
 	mux.HandleFunc("POST /debug/add", func(w http.ResponseWriter, r *http.Request) {
 		mediaType := store.MediaType(r.URL.Query().Get("type"))
-		item, err := ingest.Add(r.Context(), deps, mediaType, r.URL.Query().Get("provider_id"))
+		item, _, err := deps.Add(r.Context(), mediaType, r.URL.Query().Get("provider_id"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return

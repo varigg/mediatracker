@@ -32,15 +32,16 @@ func toStoreAvailability(itemID int64, in []providers.Availability) []store.Avai
 // availability. Only a Hydrate failure aborts — everything after
 // persistence degrades the item with gaps rather than failing the add.
 // A duplicate add (same provider/provider_id) returns the existing item
-// untouched, with no re-enrichment.
-func Add(ctx context.Context, d Deps, mediaType store.MediaType, providerID string) (*store.MediaItem, error) {
+// untouched, with no re-enrichment; the bool reports whether a new item
+// was created (false on the duplicate path).
+func (d Deps) Add(ctx context.Context, mediaType store.MediaType, providerID string) (*store.MediaItem, bool, error) {
 	p, err := d.Registry.Get(mediaType)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	details, err := p.Hydrate(ctx, providerID)
 	if err != nil {
-		return nil, fmt.Errorf("ingest: hydrate %s %s: %w", mediaType, providerID, err)
+		return nil, false, fmt.Errorf("ingest: hydrate %s %s: %w", mediaType, providerID, err)
 	}
 
 	metadata := make(map[string]any, len(details.Metadata)+1)
@@ -50,7 +51,7 @@ func Add(ctx context.Context, d Deps, mediaType store.MediaType, providerID stri
 	}
 	metaJSON, err := json.Marshal(metadata)
 	if err != nil {
-		return nil, fmt.Errorf("ingest: marshal metadata: %w", err)
+		return nil, false, fmt.Errorf("ingest: marshal metadata: %w", err)
 	}
 
 	item, created, err := d.Store.CreateItem(ctx, store.NewItem{
@@ -63,10 +64,10 @@ func Add(ctx context.Context, d Deps, mediaType store.MediaType, providerID stri
 		Metadata:    metaJSON,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("ingest: persist item: %w", err)
+		return nil, false, fmt.Errorf("ingest: persist item: %w", err)
 	}
 	if !created {
-		return item, nil
+		return item, false, nil
 	}
 
 	if details.CoverURL != nil {
@@ -95,5 +96,6 @@ func Add(ctx context.Context, d Deps, mediaType store.MediaType, providerID stri
 		d.Logger.Warn("add: persist availability failed", "item_id", item.ID, "error", err)
 	}
 
-	return d.Store.GetItem(ctx, item.ID)
+	it, err := d.Store.GetItem(ctx, item.ID)
+	return it, true, err
 }

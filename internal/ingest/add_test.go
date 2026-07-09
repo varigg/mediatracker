@@ -80,9 +80,12 @@ func TestAddPersistsItemWithRatingsAndAvailability(t *testing.T) {
 	d := newTestDeps(t, stubProvider{details: detailsFixture(nil)},
 		stubAvailability{rows: []providers.Availability{{ServiceSlug: "netflix", Kind: "subscription"}}})
 
-	item, err := Add(context.Background(), d, store.TypeMovie, "949")
+	item, created, err := d.Add(context.Background(), store.TypeMovie, "949")
 	if err != nil {
 		t.Fatalf("Add: %v", err)
+	}
+	if !created {
+		t.Error("created = false, want true on first add")
 	}
 	if item.Title != "Heat" || item.Provider != "tmdb" || item.ProviderID != "949" {
 		t.Errorf("item = %+v, want Heat/tmdb/949", item)
@@ -107,7 +110,7 @@ func TestAddDownloadsCover(t *testing.T) {
 	coverURL := imgSrv.URL + "/poster.jpg"
 
 	d := newTestDeps(t, stubProvider{details: detailsFixture(&coverURL)})
-	item, err := Add(context.Background(), d, store.TypeMovie, "949")
+	item, _, err := d.Add(context.Background(), store.TypeMovie, "949")
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -128,7 +131,7 @@ func TestAddDownloadsCover(t *testing.T) {
 
 func TestAddHydrateFailureAborts(t *testing.T) {
 	d := newTestDeps(t, stubProvider{err: errors.New("upstream down")})
-	_, err := Add(context.Background(), d, store.TypeMovie, "949")
+	_, _, err := d.Add(context.Background(), store.TypeMovie, "949")
 	if err == nil {
 		t.Fatal("want error when Hydrate fails")
 	}
@@ -146,7 +149,7 @@ func TestAddDegradesOnCoverAndAvailabilityFailure(t *testing.T) {
 	d := newTestDeps(t, stubProvider{details: detailsFixture(&badCoverURL)},
 		stubAvailability{err: errors.New("provider down")})
 
-	item, err := Add(context.Background(), d, store.TypeMovie, "949")
+	item, _, err := d.Add(context.Background(), store.TypeMovie, "949")
 	if err != nil {
 		t.Fatalf("Add must degrade, not fail: %v", err)
 	}
@@ -161,13 +164,19 @@ func TestAddDegradesOnCoverAndAvailabilityFailure(t *testing.T) {
 
 func TestAddIdempotentReAddReturnsExistingItem(t *testing.T) {
 	d := newTestDeps(t, stubProvider{details: detailsFixture(nil)})
-	first, err := Add(context.Background(), d, store.TypeMovie, "949")
+	first, created, err := d.Add(context.Background(), store.TypeMovie, "949")
 	if err != nil {
 		t.Fatalf("first Add: %v", err)
 	}
-	second, err := Add(context.Background(), d, store.TypeMovie, "949")
+	if !created {
+		t.Error("created = false on first add, want true")
+	}
+	second, created, err := d.Add(context.Background(), store.TypeMovie, "949")
 	if err != nil {
 		t.Fatalf("second Add: %v", err)
+	}
+	if created {
+		t.Error("created = true on re-add, want false")
 	}
 	if second.ID != first.ID {
 		t.Errorf("re-add ID = %d, want existing item's ID %d", second.ID, first.ID)
