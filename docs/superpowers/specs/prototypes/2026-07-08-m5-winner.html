@@ -1,0 +1,445 @@
+<title>mediatracker — Variant B: Ledger</title>
+<style>
+:root{
+  --bg:#f7f8f8; --surface:#ffffff; --ink:#1a1d1e; --muted:#5c6668;
+  --hair:#e3e7e7; --hair2:#eef1f1;
+  --accent:#0f766e; --accent-ink:#0b5d57; --accent-tint:#e6f2f0;
+  --chip:#eef1f1; --chip-ink:#3d4547;
+  --prog:#b45309; --prog-tint:#fdf1e3;
+  --done:#15803d; --done-tint:#e9f5ec;
+  --aband:#b91c1c; --aband-tint:#fbecec; --on-state:#ffffff;
+  --owned:#334155; --owned-tint:#e8edf3;
+  --t-video:#3663a8; --t-video-tint:#e8eef8;
+  --t-book:#8a6116; --t-book-tint:#f6efdd;
+  --t-game:#2f6b33; --t-game-tint:#e7f1e5;
+  --shadow:0 1px 2px rgba(20,25,26,.06),0 4px 12px rgba(20,25,26,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#131718; --surface:#1c2122; --ink:#eceff0; --muted:#9aa5a6;
+    --hair:#2a3132; --hair2:#232a2b;
+    --accent:#2da99e; --accent-ink:#7ed4cb; --accent-tint:#12312e;
+    --chip:#242b2c; --chip-ink:#b8c2c3;
+    --prog:#e8a04c; --prog-tint:#33270f;
+    --done:#5dbb7d; --done-tint:#12301c;
+    --aband:#e07070; --aband-tint:#361616; --on-state:#111516;
+    --owned:#9fb2c8; --owned-tint:#25303c;
+  --t-video:#7ea6dd; --t-video-tint:#1c2938;
+  --t-book:#d3a84f; --t-book-tint:#332a14;
+  --t-game:#7fbf7f; --t-game-tint:#1c2b1a;
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f7f8f8; --surface:#ffffff; --ink:#1a1d1e; --muted:#5c6668;
+  --hair:#e3e7e7; --hair2:#eef1f1;
+  --accent:#0f766e; --accent-ink:#0b5d57; --accent-tint:#e6f2f0;
+  --chip:#eef1f1; --chip-ink:#3d4547;
+  --prog:#b45309; --prog-tint:#fdf1e3;
+  --done:#15803d; --done-tint:#e9f5ec;
+  --aband:#b91c1c; --aband-tint:#fbecec; --on-state:#ffffff;
+  --owned:#334155; --owned-tint:#e8edf3;
+  --t-video:#3663a8; --t-video-tint:#e8eef8;
+  --t-book:#8a6116; --t-book-tint:#f6efdd;
+  --t-game:#2f6b33; --t-game-tint:#e7f1e5;
+  --shadow:0 1px 2px rgba(20,25,26,.06),0 4px 12px rgba(20,25,26,.05);
+}
+:root[data-theme="dark"]{
+  --bg:#131718; --surface:#1c2122; --ink:#eceff0; --muted:#9aa5a6;
+  --hair:#2a3132; --hair2:#232a2b;
+  --accent:#2da99e; --accent-ink:#7ed4cb; --accent-tint:#12312e;
+  --chip:#242b2c; --chip-ink:#b8c2c3;
+  --prog:#e8a04c; --prog-tint:#33270f;
+  --done:#5dbb7d; --done-tint:#12301c;
+  --aband:#e07070; --aband-tint:#361616; --on-state:#111516;
+  --owned:#9fb2c8; --owned-tint:#25303c;
+  --t-video:#7ea6dd; --t-video-tint:#1c2938;
+  --t-book:#d3a84f; --t-book-tint:#332a14;
+  --t-game:#7fbf7f; --t-game-tint:#1c2b1a;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace;
+  font-variant-numeric:tabular-nums;}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0}
+:is(button,a,input,select):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ---------- top bar (shared identity with variant A) ---------- */
+.top{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--hair)}
+.top-in{max-width:1080px;margin:0 auto;padding:0 24px;height:48px;display:flex;align-items:center;gap:24px}
+.wordmark{font-weight:650;letter-spacing:.08em;font-size:12px;text-transform:uppercase}
+.wordmark b{color:var(--accent);font-weight:650}
+nav.tabs{display:flex;gap:2px;height:100%}
+nav.tabs button{display:flex;align-items:center;gap:7px;padding:0 11px;color:var(--muted);
+  border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs .n{font-size:11px;color:var(--muted)}
+.searchbox{margin-left:auto;position:relative}
+.searchbox input{width:220px;padding:5px 10px 5px 28px;border:1px solid var(--hair);
+  border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.searchbox .glyph{position:absolute;left:9px;top:6px;color:var(--muted)}
+.search-pop{position:absolute;top:36px;right:0;width:330px;background:var(--surface);
+  border:1px solid var(--hair);border-radius:8px;box-shadow:var(--shadow);padding:5px;display:none}
+.search-pop.open{display:block}
+.search-pop .cand{display:flex;gap:10px;padding:6px 8px;border-radius:6px;align-items:center;width:100%;text-align:left}
+.search-pop .cand:hover{background:var(--hair2)}
+.search-pop .thumb{width:26px;height:38px;border-radius:3px;flex:none}
+.search-pop .ct{font-weight:550}
+.search-pop .cs{color:var(--muted);font-size:12px}
+.search-pop .hint{padding:6px 8px;color:var(--muted);font-size:11px;border-top:1px solid var(--hair2);margin-top:4px}
+
+.wrap{max-width:1080px;margin:0 auto;padding:20px 24px}
+
+/* ---------- toolbar: flat controls, no pill container ---------- */
+.toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.states{display:flex;gap:14px}
+.states button{color:var(--muted);font-weight:500;padding:2px 0;border-bottom:2px solid transparent}
+.states button:hover{color:var(--ink)}
+.states button.on{color:var(--accent-ink);border-bottom-color:var(--accent);font-weight:650}
+.states .mono{font-size:11px;margin-left:3px}
+.tool-right{margin-left:auto;display:flex;gap:12px;align-items:center}
+label.avail{display:flex;gap:6px;align-items:center;color:var(--muted);cursor:pointer;user-select:none}
+label.avail input{accent-color:var(--accent)}
+.subtabs{display:flex;gap:8px}
+.subtabs button{padding:2px 9px;border:1px solid var(--hair);border-radius:99px;color:var(--muted);font-size:12px}
+.subtabs button.on{background:var(--chip);color:var(--ink);border-color:transparent;font-weight:600}
+
+/* ---------- ledger table ---------- */
+.tablewrap{background:var(--surface);border:1px solid var(--hair);border-radius:10px;
+  overflow-x:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+  text-align:left;padding:9px 12px;border-bottom:1px solid var(--hair);white-space:nowrap;font-weight:650}
+th button{color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:inline-flex;gap:4px}
+th button:hover{color:var(--ink)}
+th .dir{opacity:.9}
+td{padding:6px 12px;border-bottom:1px solid var(--hair2);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr{cursor:pointer}
+tbody tr.video td{background:var(--t-video-tint)}
+tbody tr.book td{background:var(--t-book-tint)}
+tbody tr.game td{background:var(--t-game-tint)}
+tbody tr:hover td{filter:brightness(0.96)}
+:root[data-theme="dark"] tbody tr:hover td{filter:brightness(1.18)}
+:root{--thumb-h:38px}
+.thumb{width:calc(var(--thumb-h)*0.667);height:var(--thumb-h);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;
+  font-size:calc(var(--thumb-h)*0.28);text-shadow:0 1px 2px rgba(0,0,0,.35);
+  background-image:linear-gradient(200deg,rgba(255,255,255,.18),rgba(255,255,255,0) 45%)}
+.sizes{display:flex;gap:2px;border:1px solid var(--hair);border-radius:6px;padding:1px}
+.sizes button{padding:2px 8px;border-radius:5px;color:var(--muted);font-size:11px}
+.sizes button.on{background:var(--chip);color:var(--ink);font-weight:650}
+td.titlecell{font-weight:600;max-width:280px}
+td.titlecell .sub{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.typechip{font-size:10px;letter-spacing:.06em;font-weight:650;padding:1.5px 7px;border-radius:5px;
+  background:var(--chip);color:var(--chip-ink)}
+.typechip.movie,.typechip.tv{background:var(--t-video-tint);color:var(--t-video)}
+.typechip.book{background:var(--t-book-tint);color:var(--t-book)}
+.typechip.game{background:var(--t-game-tint);color:var(--t-game)}
+.tdot{width:8px;height:8px;border-radius:3px;flex:none;display:inline-block}
+.tdot.video{background:var(--t-video)} .tdot.book{background:var(--t-book)} .tdot.game{background:var(--t-game)}
+.badge{font-size:10.5px;padding:1px 7px;border-radius:99px;border:1px solid var(--hair);color:var(--muted);white-space:nowrap}
+.badge.sub{background:var(--accent-tint);border-color:transparent;color:var(--accent-ink);font-weight:600}
+.badge.own{background:var(--owned-tint);border-color:transparent;color:var(--owned);font-weight:600}
+.state{font-size:10.5px;padding:1.5px 8px;border-radius:99px;font-weight:600;background:var(--chip);color:var(--chip-ink);white-space:nowrap}
+.state.in_progress{background:var(--prog);color:var(--on-state)}
+.state.done{background:var(--done);color:var(--on-state)}
+.state.abandoned{background:var(--aband);color:var(--on-state)}
+.empty{color:var(--muted);padding:36px;text-align:center}
+.resultmeta{color:var(--muted);font-size:11.5px;margin:8px 2px 0}
+
+/* ---------- landing ---------- */
+h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+  margin:22px 0 10px;font-weight:650}
+h2.sec:first-child{margin-top:0}
+.panel{background:var(--surface);border:1px solid var(--hair);border-radius:10px;box-shadow:var(--shadow)}
+.ph{display:flex;align-items:center;gap:8px;padding:8px 14px 6px;font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.08em;font-weight:650;color:var(--muted);
+  border-bottom:1px solid var(--hair2);background:color-mix(in srgb,var(--surface) 60%,var(--bg))}
+.ph .mono{margin-left:auto;letter-spacing:0}
+.panel .ph:not(:first-child){border-top:1px solid var(--hair2)}
+.lrow{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--hair2);cursor:pointer;width:100%;text-align:left}
+.lrow:last-child{border-bottom:none}
+.lrow.video,.libline.video{background:var(--t-video-tint)}
+.lrow.book,.libline.book{background:var(--t-book-tint)}
+.lrow.game,.libline.game{background:var(--t-game-tint)}
+.lrow:hover,.libline:hover{filter:brightness(0.96)}
+:root[data-theme="dark"] .lrow:hover,:root[data-theme="dark"] .libline:hover{filter:brightness(1.18)}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .lrow:hover,
+  :root:not([data-theme="light"]) .libline:hover{filter:brightness(1.18)}
+  :root:not([data-theme="light"]) tbody tr:hover td{filter:brightness(1.18)}
+}
+.lrow .thumb{width:32px;height:48px;font-size:12px}
+.lrow .lt{font-weight:600}
+.lrow .ls{color:var(--muted);font-size:12px}
+.lrow .right{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--muted);font-size:11.5px;white-space:nowrap}
+.homegrid{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+.libline{display:flex;gap:18px;padding:10px 14px;border-bottom:1px solid var(--hair2);align-items:baseline;cursor:pointer;width:100%;text-align:left}
+.libline:last-child{border-bottom:none}
+.libline .g{font-weight:600;width:100px}
+.libline .mono{color:var(--muted)}
+
+/* ---------- detail: A-style large cover, two columns ---------- */
+.back{color:var(--muted);font-size:12.5px;margin-bottom:14px;display:inline-flex;gap:6px}
+.back:hover{color:var(--ink)}
+.detail{display:grid;grid-template-columns:250px 1fr;gap:30px;align-items:start}
+.dcoverwrap{position:sticky;top:72px}
+.bigcover{aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:700;font-size:44px;letter-spacing:.03em;border-radius:12px;
+  box-shadow:var(--shadow);text-shadow:0 2px 4px rgba(0,0,0,.35)}
+.dtitle{font-size:22px;font-weight:650;margin:0;text-wrap:balance}
+.dsub{color:var(--muted);margin:6px 0 16px}
+.dsection{border-top:1px solid var(--hair);padding:16px 0}
+.dsection h3{font-size:11px;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--muted);margin:0 0 10px;font-weight:650}
+.ratings{display:flex;gap:12px;flex-wrap:wrap}
+.rsource{background:var(--surface);border:1px solid var(--hair);border-radius:9px;
+  padding:9px 13px;min-width:104px}
+.rsource .rv{font-size:16px;font-weight:650}
+.rsource .rn{color:var(--muted);font-size:11px;margin-top:1px}
+.rsource a{color:var(--accent-ink);font-size:11px}
+.avrow{display:flex;gap:8px;flex-wrap:wrap}
+.avchip{display:flex;gap:7px;align-items:center;border:1px solid var(--hair);
+  border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--muted)}
+.avchip.sub{background:var(--accent-tint);border-color:transparent;color:var(--accent-ink);font-weight:600}
+.avchip.own{background:var(--owned-tint);border-color:transparent;color:var(--owned);font-weight:600}
+.avchip .k{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.75}
+.transitions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tbtn{border:1px solid var(--hair);border-radius:8px;padding:7px 14px;font-weight:600;background:var(--surface)}
+.tbtn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.tbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.tbtn.primary:hover{color:#fff;filter:brightness(1.08)}
+.verdict{display:flex;gap:6px}
+.verdict button{border:1px solid var(--hair);border-radius:99px;padding:5px 13px;color:var(--muted)}
+.verdict button.on{background:var(--done-tint);border-color:transparent;color:var(--done);font-weight:650}
+.notes textarea{width:100%;min-height:110px;border:1px solid var(--hair);border-radius:9px;
+  background:var(--surface);color:var(--ink);padding:10px 12px;font:inherit;resize:vertical}
+.notes .nbar{display:flex;gap:8px;margin-top:8px;align-items:center}
+.nprev{border:1px dashed var(--hair);border-radius:9px;padding:10px 12px;background:var(--surface)}
+.nprev em{color:var(--muted)}
+.savehint{color:var(--muted);font-size:11.5px;margin-left:auto}
+.metagrid{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:12.5px}
+.metagrid dt{color:var(--muted)}
+.metagrid dd{margin:0}
+
+.viewnote{margin:30px auto 8px;max-width:1080px;padding:0 24px;color:var(--muted);font-size:11.5px}
+@media (max-width:720px){
+  .top-in{gap:12px;padding:0 12px}
+  .searchbox input{width:130px}
+  .wrap{padding:14px 12px}
+  .homegrid{grid-template-columns:1fr}
+  .detail{grid-template-columns:1fr}
+  .dcoverwrap{position:static;max-width:180px}
+  .states{flex-wrap:wrap;gap:10px}
+}
+</style>
+
+<header class="top"><div class="top-in">
+  <span class="wordmark">media<b>tracker</b></span>
+  <nav class="tabs" id="tabs">
+    <button data-v="home" class="on">Home</button>
+    <button data-v="movies-tv"><span class="tdot video"></span>Movies &amp; TV <span class="n mono">7</span></button>
+    <button data-v="books"><span class="tdot book"></span>Books <span class="n mono">3</span></button>
+    <button data-v="games"><span class="tdot game"></span>Games <span class="n mono">4</span></button>
+  </nav>
+  <div class="searchbox">
+    <span class="glyph">⌕</span>
+    <input id="q" placeholder="Add a movie, book, game…" autocomplete="off">
+    <div class="search-pop" id="qpop"></div>
+  </div>
+</div></header>
+
+<main class="wrap" id="view"></main>
+<p class="viewnote">Variant B — “Ledger”. Dense sortable table, flat text filters, single-column detail with sidebar. All data is mock; every control simulates an HTMX partial swap.</p>
+
+<script>
+const items=[
+ {id:1,type:"movie",group:"movies-tv",title:"Heat",year:1995,state:"done",verdict:"liked",completed:"2026-05-14",rating:87,ratings:[{s:"IMDB",d:"8.3/10"},{s:"Rotten Tomatoes",d:"91%"}],genres:["Crime","Thriller"],avail:[],hue:210,added:"2026-06-11",notes:"The diner scene alone earns it. **Rewatch** candidate."},
+ {id:2,type:"movie",group:"movies-tv",title:"Dune: Part Two",year:2024,state:"want_to",rating:92,ratings:[{s:"IMDB",d:"8.6/10"},{s:"Rotten Tomatoes",d:"92%"}],genres:["Sci-Fi"],avail:[{svc:"Netflix",kind:"subscription",sub:true,isnew:true}],hue:28,added:"2026-06-12"},
+ {id:3,type:"movie",group:"movies-tv",title:"The Matrix",year:1999,state:"done",verdict:"liked",completed:"2026-02-02",rating:88,ratings:[{s:"IMDB",d:"8.7/10"},{s:"Rotten Tomatoes",d:"83%"}],genres:["Sci-Fi","Action"],avail:[{svc:"Max",kind:"subscription",sub:false}],hue:120,added:"2026-06-13"},
+ {id:4,type:"movie",group:"movies-tv",title:"Oppenheimer",year:2023,state:"in_progress",rating:90,ratings:[{s:"IMDB",d:"8.9/10"}],genres:["Drama","History"],avail:[{svc:"Peacock",kind:"subscription",sub:false}],hue:16,added:"2026-06-14"},
+ {id:5,type:"tv",group:"movies-tv",title:"Severance",year:2022,state:"in_progress",rating:89,ratings:[{s:"IMDB",d:"8.7/10"},{s:"Rotten Tomatoes",d:"97%"}],genres:["Drama","Sci-Fi"],avail:[{svc:"Apple TV+",kind:"subscription",sub:false}],hue:190,added:"2026-06-15",notes:"S2E4 — *the goat room*?!"},
+ {id:6,type:"tv",group:"movies-tv",title:"Breaking Bad",year:2008,state:"done",verdict:"liked",completed:"2025-11-20",rating:93,ratings:[{s:"IMDB",d:"9.5/10"},{s:"Rotten Tomatoes",d:"96%"}],genres:["Drama","Crime"],avail:[{svc:"Netflix",kind:"subscription",sub:true}],hue:80,added:"2026-06-16"},
+ {id:7,type:"tv",group:"movies-tv",title:"Shōgun",year:2024,state:"want_to",rating:91,ratings:[{s:"IMDB",d:"8.6/10"}],genres:["Drama","History"],avail:[{svc:"Hulu",kind:"subscription",sub:true}],hue:340,added:"2026-06-17"},
+ {id:8,type:"book",group:"books",title:"Project Hail Mary",year:2021,state:"in_progress",rating:88,ratings:[{s:"Hardcover",d:"4.4/5"}],genres:["Sci-Fi"],avail:[],hue:260,added:"2026-06-18",notes:"Rocky is the best character in modern SF. Fight me."},
+ {id:9,type:"book",group:"books",title:"The Hobbit",year:1937,state:"done",verdict:"liked",completed:"2026-01-10",rating:86,ratings:[{s:"Hardcover",d:"4.3/5"}],genres:["Fantasy"],avail:[],hue:140,added:"2026-06-19"},
+ {id:10,type:"book",group:"books",title:"Piranesi",year:2020,state:"want_to",rating:84,ratings:[{s:"Hardcover",d:"4.2/5"}],genres:["Fantasy","Mystery"],avail:[],hue:200,added:"2026-06-20"},
+ {id:11,type:"game",group:"games",title:"The Witcher 3: Wild Hunt",year:2015,state:"want_to",rating:94,ratings:[{s:"IGDB",d:"94/100"},{s:"IGDB Critics",d:"92/100"}],genres:["RPG","Adventure"],avail:[{svc:"Game Pass",kind:"subscription",sub:true,isnew:true},{svc:"Steam",kind:"owned"}],hue:0,added:"2026-06-21"},
+ {id:12,type:"game",group:"games",title:"Hades",year:2020,state:"in_progress",rating:92,ratings:[{s:"IGDB",d:"93/100"}],genres:["Roguelike","Action"],avail:[{svc:"Steam",kind:"owned"}],hue:300,added:"2026-06-22",notes:"Heat 16. Coach Skelly believes in me."},
+ {id:13,type:"game",group:"games",title:"Baldur's Gate 3",year:2023,state:"want_to",rating:96,ratings:[{s:"IGDB",d:"96/100"}],genres:["RPG"],avail:[],hue:250,added:"2026-06-23"},
+ {id:14,type:"game",group:"games",title:"Celeste",year:2018,state:"abandoned",verdict:"ok",completed:"2025-09-03",rating:90,ratings:[{s:"IGDB",d:"92/100"}],genres:["Platformer"],avail:[{svc:"Steam",kind:"owned"}],hue:320,added:"2026-06-24",notes:"Chapter 7 broke me. Great game, wrong hands."}
+];
+const stateNames={want_to:"Want to",in_progress:"In progress",done:"Done",abandoned:"Abandoned"};
+const legal={want_to:["in_progress","done","abandoned"],in_progress:["want_to","done","abandoned"],done:["in_progress"],abandoned:["want_to","in_progress"]};
+const groupLabel={"movies-tv":"Movies & TV",books:"Books",games:"Games"};
+let ui={view:"home",group:null,state:"want_to",sub:"all",sort:"added",dir:-1,avail:false,detail:null,thumb:"s"};
+
+const $=s=>document.querySelector(s);
+const esc=t=>t.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+function thumbStyle(it){return `background-color:hsl(${it.hue} 32% 40%);background-image:linear-gradient(200deg,rgba(255,255,255,.22),rgba(255,255,255,0) 50%),linear-gradient(160deg,hsl(${it.hue} 34% 48%),hsl(${(it.hue+40)%360} 40% 28%))`}
+function mono(it){return it.title.split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}
+function badge(a){return `<span class="badge ${a.kind==='owned'?'own':(a.sub?'sub':'')}">${a.svc}${a.kind==='owned'?' · owned':''}</span>`}
+
+function renderTab(){
+  const inGroup=items.filter(i=>i.group===ui.group);
+  let list=inGroup.filter(i=>i.state===ui.state);
+  if(ui.group==="movies-tv"&&ui.sub!=="all")list=list.filter(i=>i.type===ui.sub);
+  if(ui.avail)list=list.filter(i=>i.avail.some(a=>a.kind==="owned"||a.sub));
+  const key={added:i=>i.added,year:i=>i.year,rating:i=>i.rating,title:i=>i.title.toLowerCase()}[ui.sort];
+  list.sort((a,b)=>{const x=key(a),y=key(b);return (x<y?-1:x>y?1:0)*ui.dir});
+  const states=Object.entries(stateNames).map(([k,v])=>{
+    const n=inGroup.filter(i=>i.state===k).length;
+    return `<button class="${ui.state===k?'on':''}" onclick="setState('${k}')">${v}<span class="mono">${n}</span></button>`}).join("");
+  const subtabs=ui.group!=="movies-tv"?"":`<div class="subtabs">
+    ${[["all","All"],["movie","Movies"],["tv","TV"]].map(([k,v])=>`<button class="${ui.sub===k?'on':''}" onclick="setSub('${k}')">${v}</button>`).join("")}</div>`;
+  const th=(k,label,cls)=>`<th class="${cls||''}"><button onclick="setSort('${k}')">${label}${ui.sort===k?`<span class="dir">${ui.dir>0?"↑":"↓"}</span>`:""}</button></th>`;
+  const rows=list.map(it=>`<tr class="${dotClass[it.group]}" onclick="openDetail(${it.id})">
+    <td style="width:38px"><span class="thumb" style="${thumbStyle(it)}">${mono(it)}</span></td>
+    <td class="titlecell">${esc(it.title)}<span class="sub">${it.genres.join(" · ")}</span></td>
+    <td><span class="typechip ${it.type}">${it.type.toUpperCase()}</span></td>
+    <td class="mono">${it.year}</td>
+    <td class="mono">★ ${it.rating}</td>
+    <td>${it.avail.map(badge).join(" ")||`<span style="color:var(--muted)">—</span>`}</td>
+    <td><span class="state ${it.state}">${stateNames[it.state]}</span></td>
+    <td class="mono" style="color:var(--muted)">${it.added}</td></tr>`).join("");
+  $("#view").innerHTML=`
+   <div class="toolbar">
+     <div class="states">${states}</div>
+     ${subtabs}
+     <div class="tool-right">
+       <div class="sizes">${[["s","S","38px"],["m","M","56px"],["l","L","84px"]].map(([k,v])=>`<button class="${ui.thumb===k?'on':''}" onclick="setThumb('${k}')">${v}</button>`).join("")}</div>
+       <label class="avail"><input type="checkbox" ${ui.avail?"checked":""} onchange="ui.avail=this.checked;renderTab()">Available to me</label>
+     </div>
+   </div>
+   <div class="tablewrap"><table>
+     <thead><tr><th></th>${th("title","Title")}<th>Type</th>${th("year","Year")}${th("rating","Rating")}<th>Availability</th><th>State</th>${th("added","Added")}</tr></thead>
+     <tbody>${rows||`<tr><td colspan="8" class="empty">Nothing here — try another filter.</td></tr>`}</tbody>
+   </table></div>
+   <p class="resultmeta mono">${list.length} of ${inGroup.length} items · sorted by ${ui.sort} ${ui.dir>0?"asc":"desc"} · column headers sort</p>`;
+}
+
+const dotClass={"movies-tv":"video",books:"book",games:"game"};
+function groupedPanel(list,row){
+  return ["movies-tv","books","games"].map(g=>{
+    const sub=list.filter(i=>i.group===g);
+    if(!sub.length)return "";
+    return `<div class="ph"><span class="tdot ${dotClass[g]}"></span>${groupLabel[g]}<span class="mono">${sub.length}</span></div>`+
+      sub.map(row).join("");
+  }).join("");
+}
+function renderHome(){
+  const cont=items.filter(i=>i.state==="in_progress");
+  const news=items.filter(i=>i.avail.some(a=>a.isnew&&a.sub));
+  const contRow=it=>`<button class="lrow ${dotClass[it.group]}" onclick="openDetail(${it.id})">
+        <span class="thumb" style="${thumbStyle(it)}">${mono(it)}</span>
+        <span><span class="lt">${esc(it.title)}</span><br><span class="ls">${it.genres.join(" · ")}</span></span>
+        <span class="right"><span class="state in_progress">In progress</span></span></button>`;
+  const newRow=it=>{const a=it.avail.find(a=>a.isnew);
+        return `<button class="lrow ${dotClass[it.group]}" onclick="openDetail(${it.id})">
+        <span class="thumb" style="${thumbStyle(it)}">${mono(it)}</span>
+        <span><span class="lt">${esc(it.title)}</span><br><span class="ls">now on ${a.svc}</span></span>
+        <span class="right mono">this cycle</span></button>`};
+  $("#view").innerHTML=`
+   <div class="homegrid">
+    <div>
+     <h2 class="sec">Continue</h2>
+     <div class="panel">${groupedPanel(cont,contRow)}</div>
+    </div>
+    <div>
+     <h2 class="sec">Newly available on your services</h2>
+     <div class="panel">${groupedPanel(news,newRow)}</div>
+    </div>
+   </div>
+   <h2 class="sec">Library</h2>
+   <div class="panel">${["movies-tv","books","games"].map(g=>{
+     const f=s=>items.filter(i=>i.group===g&&i.state===s).length;
+     return `<button class="libline ${dotClass[g]}" onclick="openTab('${g}')">
+       <span class="g" style="display:flex;gap:8px;align-items:center"><span class="tdot ${dotClass[g]}"></span>${groupLabel[g]}</span>
+       <span class="mono">${f("want_to")} want to</span><span class="mono">${f("in_progress")} in progress</span>
+       <span class="mono">${f("done")} done</span><span class="mono" style="margin-left:auto">→</span></button>`}).join("")}</div>`;
+}
+
+function renderDetail(){
+  const it=items.find(i=>i.id===ui.detail);
+  const rsrc=it.ratings.map(r=>`<div class="rsource"><div class="rv mono">${r.d}</div><div class="rn">${r.s}</div><a href="#" onclick="return false">open ↗</a></div>`).join("");
+  const av=it.avail.length?`<div class="avrow">${it.avail.map(a=>`
+      <span class="avchip ${a.kind==='owned'?'own':(a.sub?'sub':'')}">${a.svc}<span class="k">${a.kind==='owned'?'owned · store page ↗':(a.sub?'subscribed':'not subscribed')}</span></span>`).join("")}</div>`
+    :`<span style="color:var(--muted)">No availability data.</span>`;
+  const trans=legal[it.state].map((t,i)=>`<button class="tbtn ${i===0?'primary':''}" onclick="doTransition(${it.id},'${t}')">${({want_to:"Move to Want to",in_progress:it.state==='done'?"Re-watch / resume":"Start",done:"Mark done",abandoned:"Abandon"})[t]}</button>`).join("");
+  const verdict=["liked","ok","disliked"].map(v=>`<button class="${it.verdict===v?'on':''}" onclick="setVerdict(${it.id},'${v}')">${v==='liked'?'Liked':v==='ok'?'It was OK':'Disliked'}</button>`).join("");
+  const terminal=it.state==="done"||it.state==="abandoned";
+  $("#view").innerHTML=`
+   <a class="back" href="#" onclick="closeDetail();return false">← Back to ${groupLabel[it.group]}</a>
+   <div class="detail">
+     <div class="dcoverwrap"><div class="bigcover" style="${thumbStyle(it)}">${mono(it)}</div></div>
+     <div>
+       <h1 class="dtitle">${esc(it.title)}</h1>
+       <div class="dsub mono"><span class="typechip ${it.type}">${it.type.toUpperCase()}</span> · ${it.year} · ${it.genres.join(" · ")} · <span class="state ${it.state}">${stateNames[it.state]}</span>${it.completed?` · completed ${it.completed}`:""}</div>
+       <div class="dsection"><h3>Status</h3><div class="transitions">${trans}</div></div>
+       ${terminal?`<div class="dsection"><h3>Verdict</h3><div class="verdict">${verdict}</div></div>`:""}
+       <div class="dsection"><h3>Ratings</h3><div class="ratings">${rsrc}</div></div>
+       <div class="dsection"><h3>Where to ${it.group==='games'?'play':it.group==='books'?'read':'watch'}</h3>${av}</div>
+       <div class="dsection notes"><h3>Notes</h3>
+         <div id="nwrap"><textarea id="ntext">${esc(it.notes||"")}</textarea></div>
+         <div class="nbar">
+           <button class="tbtn" onclick="togglePreview(${it.id})" id="pbtn">Preview</button>
+           <button class="tbtn primary" onclick="this.textContent='Saved ✓';setTimeout(()=>this.textContent='Save notes',1200)">Save notes</button>
+           <span class="savehint">Markdown supported · saved explicitly, no autosave</span>
+         </div></div>
+       <div class="dsection"><h3>Details</h3><dl class="metagrid">
+         <dt>Provider</dt><dd class="mono">${it.group==='games'?'igdb':it.group==='books'?'openlibrary':'tmdb'} · id ${it.id*137}</dd>
+         <dt>Added</dt><dd class="mono">${it.added}</dd>
+         <dt>Refreshed</dt><dd class="mono">2026-07-07 04:12</dd></dl></div>
+     </div></div>`;
+}
+
+let preview=false;
+function togglePreview(id){
+  const it=items.find(i=>i.id===id);preview=!preview;
+  const w=$("#nwrap");
+  if(preview){it.notes=$("#ntext").value;
+    w.innerHTML=`<div class="nprev">${esc(it.notes||"*nothing yet*").replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\*(.+?)\*/g,"<em>$1</em>")}</div>`;
+    $("#pbtn").textContent="Edit";
+  } else {w.innerHTML=`<textarea id="ntext">${esc(it.notes||"")}</textarea>`;$("#pbtn").textContent="Preview";}
+}
+function doTransition(id,to){const it=items.find(i=>i.id===id);it.state=to;
+  if(to==="done"||to==="abandoned"){it.completed=new Date().toISOString().slice(0,10)}else{delete it.verdict;delete it.completed}
+  renderDetail()}
+function setVerdict(id,v){items.find(i=>i.id===id).verdict=v;renderDetail()}
+function openDetail(id){ui.detail=id;ui.view="detail";render()}
+function closeDetail(){ui.view=ui.group?"tab":"home";ui.detail=null;render()}
+function openTab(g){ui.group=g;ui.view="tab";ui.state="want_to";ui.sub="all";render();
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===g))}
+function setState(s){ui.state=s;renderTab()}
+function setSub(s){ui.sub=s;renderTab()}
+function setThumb(k){ui.thumb=k;
+  document.documentElement.style.setProperty("--thumb-h",{s:"38px",m:"56px",l:"84px"}[k]);renderTab()}
+function setSort(k){if(ui.sort===k)ui.dir*=-1;else{ui.sort=k;ui.dir=k==="title"?1:-1}renderTab()}
+function render(){
+  if(ui.view==="home")renderHome();else if(ui.view==="tab")renderTab();else renderDetail();
+  window.scrollTo(0,0)}
+document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",()=>{
+  const v=b.dataset.v;
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x===b));
+  if(v==="home"){ui.view="home";ui.group=null}else{ui.group=v;ui.view="tab";ui.state="want_to";ui.sub="all"}
+  render()}));
+
+const qpop=$("#qpop");
+$("#q").addEventListener("input",e=>{
+  const q=e.target.value.trim().toLowerCase();
+  if(!q){qpop.classList.remove("open");return}
+  const hits=items.filter(i=>i.title.toLowerCase().includes(q)).slice(0,4);
+  qpop.innerHTML=(hits.map(it=>`<button class="cand" onclick="openDetail(${it.id});qpop.classList.remove('open');document.getElementById('q').value=''">
+     <span class="thumb" style="${thumbStyle(it)}"></span>
+     <span><span class="ct">${esc(it.title)}</span><br><span class="cs">${it.year} · ${it.type.toUpperCase()} · already in library → opens item</span></span></button>`).join(""))+
+   `<div class="hint">In the real app this searches TMDB / Open Library / IGDB and adding is one click; duplicates redirect here.</div>`;
+  qpop.classList.add("open");
+});
+document.addEventListener("click",e=>{if(!e.target.closest(".searchbox"))qpop.classList.remove("open")});
+render();
+</script>
