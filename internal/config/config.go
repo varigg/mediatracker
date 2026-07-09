@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -52,6 +53,16 @@ func Default() Config {
 	}
 }
 
+// Validate checks that the config contains valid values. It returns an error
+// if LogLevel is not a valid slog.Level.
+func (c Config) Validate() error {
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(c.LogLevel)); err != nil {
+		return fmt.Errorf("config: invalid log_level %q: %w", c.LogLevel, err)
+	}
+	return nil
+}
+
 // Load reads config.toml from dataDir. A missing file yields defaults;
 // an unreadable or malformed file is an error.
 func Load(dataDir string) (Config, error) {
@@ -66,6 +77,9 @@ func Load(dataDir string) (Config, error) {
 	}
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return cfg, fmt.Errorf("config: parse %s: %w", path, err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return cfg, err
 	}
 	return cfg, nil
 }
