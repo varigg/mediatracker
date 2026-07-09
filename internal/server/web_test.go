@@ -859,6 +859,64 @@ func TestSettingsProviderStatus(t *testing.T) {
 	}
 }
 
+func TestSettingsShowsProviderLastSuccessAndSnapshotAges(t *testing.T) {
+	srv, st, dataDir := newTestServer(t)
+	ctx := context.Background()
+	if err := st.SetSetting(ctx, "provider_last_success_tmdb", "2026-07-09 08:00:00"); err != nil {
+		t.Fatal(err)
+	}
+
+	catalogsDir := filepath.Join(dataDir, "catalogs")
+	if err := os.MkdirAll(catalogsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSnapshot := func(slug, fetchedAt string) {
+		data := fmt.Sprintf(`{"fetched_at":%q,"entries":[]}`, fetchedAt)
+		if err := os.WriteFile(filepath.Join(catalogsDir, slug+".json"), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeSnapshot("game_pass", "2026-07-09 07:30:00")
+	writeSnapshot("steam_owned", "2026-07-09 07:45:00")
+	// ps_plus intentionally left unwritten: the syncer is a placeholder
+	// (plan decision 2), so it must honestly render "never".
+
+	resp, body := get(t, srv, "/settings")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, needle := range []string{
+		"last success: 2026-07-09 08:00:00", // tmdb provider health
+		"2026-07-09 07:30:00",               // game_pass snapshot age
+		"2026-07-09 07:45:00",               // steam_owned snapshot age
+	} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("settings missing %q, got %s", needle, body)
+		}
+	}
+	if strings.Count(body, "never") < 1 {
+		t.Errorf("settings missing ps_plus 'never' fallback, got %s", body)
+	}
+}
+
+func TestSettingsSnapshotAgesAndProviderHealthNeverOnFreshDir(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	resp, body := get(t, srv, "/settings")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, needle := range []string{"Game Pass", "PS Plus", "Steam owned"} {
+		if !strings.Contains(body, needle) {
+			t.Errorf("settings missing snapshot label %q, got %s", needle, body)
+		}
+	}
+	// Last refresh + three catalog ages + tmdb/igdb provider health, all
+	// unset on a fresh dir.
+	if got := strings.Count(body, "never"); got < 5 {
+		t.Errorf(`settings has %d "never" occurrences on a fresh dir, want at least 5`, got)
+	}
+}
+
 func TestDetailAndSettingsShowStaleAvailability(t *testing.T) {
 	// A tiny RefreshInterval makes the 2×-interval staleness threshold
 	// breach almost immediately, letting the test avoid backdating rows

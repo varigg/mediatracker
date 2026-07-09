@@ -21,6 +21,17 @@
  <div class="setrow static">
   <span>{{.Label}}</span>
   {{if .Configured}}<span class="cfg on">configured</span>{{else}}<span class="cfg">not configured</span>{{end}}
+  {{if .LastSuccess}}<span class="mono">last success: {{.LastSuccess}}</span>{{end}}
+ </div>
+ {{end}}
+</div>
+
+<h2 class="sec">Availability Catalogs</h2>
+<div class="panel">
+ {{range .Snapshots}}
+ <div class="setrow static">
+  <span>{{.Label}}</span>
+  <span class="mono">{{.Age}}</span>
  </div>
  {{end}}
 </div>

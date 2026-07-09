@@ -167,16 +167,19 @@ func (r *Refresher) refreshItem(ctx context.Context, item *store.MediaItem) Item
 		if err != nil {
 			out.RatingsFailed = true
 			r.deps.Logger.Warn("refresh: hydrate failed", "item_id", item.ID, "error", err)
-		} else if len(details.Ratings) > 0 {
-			// Hydrate can succeed with an empty Ratings slice when a
-			// sub-source is transiently degraded (e.g. OMDb down,
-			// Hardcover miss). ReplaceRatings is delete-then-insert, so
-			// only call it when there's something new to write — an
-			// empty result here is "nothing new," not a failure, and
-			// must not wipe previously-good ratings rows.
-			if err := r.deps.Store.ReplaceRatings(ctx, item.ID, toStoreRatings(item.ID, details.Ratings)); err != nil {
-				out.RatingsFailed = true
-				r.deps.Logger.Warn("refresh: replace ratings failed", "item_id", item.ID, "error", err)
+		} else {
+			recordProviderSuccess(ctx, r.deps.Store, r.deps.Logger, details.Provider, r.deps.Now())
+			if len(details.Ratings) > 0 {
+				// Hydrate can succeed with an empty Ratings slice when a
+				// sub-source is transiently degraded (e.g. OMDb down,
+				// Hardcover miss). ReplaceRatings is delete-then-insert, so
+				// only call it when there's something new to write — an
+				// empty result here is "nothing new," not a failure, and
+				// must not wipe previously-good ratings rows.
+				if err := r.deps.Store.ReplaceRatings(ctx, item.ID, toStoreRatings(item.ID, details.Ratings)); err != nil {
+					out.RatingsFailed = true
+					r.deps.Logger.Warn("refresh: replace ratings failed", "item_id", item.ID, "error", err)
+				}
 			}
 		}
 	} else {

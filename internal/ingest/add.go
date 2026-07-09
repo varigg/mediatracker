@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"time"
 
 	"github.com/varigg/mediatracker/internal/covers"
 	"github.com/varigg/mediatracker/internal/providers"
@@ -50,6 +51,11 @@ func (d Deps) Add(ctx context.Context, mediaType store.MediaType, providerID str
 	if err != nil {
 		return nil, false, fmt.Errorf("%w (%s %s): %w", ErrHydrate, mediaType, providerID, err)
 	}
+	now := time.Now
+	if d.Now != nil {
+		now = d.Now
+	}
+	recordProviderSuccess(ctx, d.Store, d.Logger, details.Provider, now())
 
 	metadata := make(map[string]any, len(details.Metadata)+1)
 	maps.Copy(metadata, details.Metadata)
