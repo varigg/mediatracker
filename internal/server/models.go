@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
 	"github.com/yuin/goldmark"
 )
@@ -29,6 +30,13 @@ var groupTypes = map[string][]store.MediaType{
 
 var groupLabels = map[string]string{
 	"movies-tv": "Movies & TV", "books": "Books", "games": "Games",
+}
+
+// groupDotClass maps a URL group to the CSS class of its status dot
+// (video | book | game) — one source shared by every view model that
+// renders a group's dot, rather than each redeclaring the same literal.
+var groupDotClass = map[string]string{
+	"movies-tv": "video", "books": "book", "games": "game",
 }
 
 // stateOrder fixes the left-to-right order of the toolbar's state tabs;
@@ -75,9 +83,8 @@ func (s *site) nav(r *http.Request, active string) (Nav, error) {
 type HomeRow struct {
 	ID       int64
 	Title    string
-	Sub      string // genres line, or "now on X"
+	Sub      string // caller-supplied subtitle line (genres, or a status blurb)
 	Right    string // right-aligned annotation
-	Group    string
 	DotClass string // video | book | game
 	Cover    *CoverRef
 }
@@ -140,6 +147,44 @@ func hueFor(title string) int {
 	return h
 }
 
+// SearchCandidate is one row of the /search picker fragment.
+type SearchCandidate struct {
+	Type           string
+	ProviderID     string
+	Title          string
+	Year           *int
+	Disambiguation string
+	Cover          *CoverRef
+}
+
+// SearchData is the search.html "search-results" fragment's view model.
+// Hint carries a non-error, user-facing message (empty query's provider
+// not configured); an upstream Search failure instead goes through the
+// shared inline-error block (see s.upstreamError), never through Hint.
+type SearchData struct {
+	Hint       string
+	Candidates []SearchCandidate
+}
+
+// toSearchCandidate adapts a provider search result to the picker's view
+// model, building a CoverRef-shaped thumbnail so search.html can reuse
+// the existing "thumb" partial (real image if the provider gave one,
+// else the same monogram placeholder used everywhere else).
+func toSearchCandidate(c providers.Candidate) SearchCandidate {
+	cover := &CoverRef{Monogram: monogram(c.Title), Hue: hueFor(c.Title)}
+	if c.ThumbnailURL != nil {
+		cover.URL = *c.ThumbnailURL
+	}
+	return SearchCandidate{
+		Type:           string(c.MediaType),
+		ProviderID:     c.ProviderID,
+		Title:          c.Title,
+		Year:           c.Year,
+		Disambiguation: c.Disambiguation,
+		Cover:          cover,
+	}
+}
+
 func dotClassFor(mt store.MediaType) string {
 	switch mt {
 	case store.TypeBook:
@@ -172,14 +217,13 @@ func groupRows(items []store.MediaItem, sub func(store.MediaItem) (string, strin
 		g := groupFor(it.MediaType)
 		byGroup[g] = append(byGroup[g], HomeRow{
 			ID: it.ID, Title: it.Title, Sub: s, Right: right,
-			Group: g, DotClass: dotClassFor(it.MediaType), Cover: coverRef(it),
+			DotClass: dotClassFor(it.MediaType), Cover: coverRef(it),
 		})
 	}
 	var out []HomeGroup
 	for _, g := range []string{"movies-tv", "books", "games"} {
 		if rows := byGroup[g]; len(rows) > 0 {
-			out = append(out, HomeGroup{Label: groupLabels[g], DotClass: map[string]string{
-				"movies-tv": "video", "books": "book", "games": "game"}[g], Rows: rows})
+			out = append(out, HomeGroup{Label: groupLabels[g], DotClass: groupDotClass[g], Rows: rows})
 		}
 	}
 	return out
@@ -222,6 +266,7 @@ type TabData struct {
 	Label   string
 	Sub     string // "" | "movie" | "tv"
 	States  []StateTab
+	Genres  []string // distinct genres present for the current group/sub/state scope
 	Filter  store.ListFilter
 	Rows    []TabRow
 	Total   int
@@ -255,6 +300,11 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 			n += counts[mt][st]
 		}
 		states = append(states, StateTab{State: st, Label: stateNames[st], Count: n, Active: f.State == st})
+	}
+
+	genres, err := s.deps.Store.DistinctGenres(ctx, f.Types, f.State)
+	if err != nil {
+		return TabData{}, err
 	}
 
 	density, _, err := s.deps.Store.GetSetting(ctx, "row_density")
@@ -344,10 +394,122 @@ func (s *site) tabData(r *http.Request, group, sub string, f store.ListFilter, i
 		Label:   groupLabels[group],
 		Sub:     sub,
 		States:  states,
+		Genres:  genres,
 		Filter:  f,
 		Rows:    rows,
 		Total:   len(rows),
 		Density: density,
+	}, nil
+}
+
+// ServiceRow is one toggleable row of the Settings services checklist.
+type ServiceRow struct {
+	Slug       string
+	Name       string
+	Subscribed bool
+}
+
+// ServiceGroup is one media-kind-grouped section of the services
+// checklist (video/game/book, matching store.Service.MediaKind).
+type ServiceGroup struct {
+	Label    string
+	DotClass string
+	Services []ServiceRow
+}
+
+// ProviderRow is one metadata-provider status row (configured or not).
+type ProviderRow struct {
+	Label      string
+	Configured bool
+}
+
+// SettingsData is the settings.html "settings-body" fragment's view model.
+type SettingsData struct {
+	Nav           Nav
+	ServiceGroups []ServiceGroup
+	Providers     []ProviderRow
+	Density       string
+	LastRefresh   string // "never" fallback
+}
+
+// mediaKindLabel maps a store.Service.MediaKind value to the same group
+// label used elsewhere (groupLabels keys by URL group, not media kind).
+var mediaKindLabel = map[string]string{
+	"video": groupLabels["movies-tv"],
+	"book":  groupLabels["books"],
+	"game":  groupLabels["games"],
+}
+
+// serviceGroups buckets services by media kind in a fixed video/game/book
+// order — the Settings page's own grouping, distinct from the
+// movies-tv/books/games order used by the tabs.
+func serviceGroups(services []store.Service) []ServiceGroup {
+	byKind := map[string][]ServiceRow{}
+	for _, sv := range services {
+		byKind[sv.MediaKind] = append(byKind[sv.MediaKind], ServiceRow{
+			Slug: sv.Slug, Name: sv.Name, Subscribed: sv.Subscribed,
+		})
+	}
+	var out []ServiceGroup
+	for _, kind := range []string{"video", "game", "book"} {
+		if rows := byKind[kind]; len(rows) > 0 {
+			out = append(out, ServiceGroup{Label: mediaKindLabel[kind], DotClass: kind, Services: rows})
+		}
+	}
+	return out
+}
+
+// settingsData builds the settings.html view model: services grouped by
+// media kind, static provider-configured status from Deps.Providers,
+// whitelisted row density, and the last-refresh timestamp ("never" when
+// unset).
+func (s *site) settingsData(r *http.Request) (SettingsData, error) {
+	ctx := r.Context()
+
+	nav, err := s.nav(r, "settings")
+	if err != nil {
+		return SettingsData{}, err
+	}
+
+	services, err := s.deps.Store.ListServices(ctx)
+	if err != nil {
+		return SettingsData{}, err
+	}
+
+	density, _, err := s.deps.Store.GetSetting(ctx, "row_density")
+	if err != nil {
+		return SettingsData{}, err
+	}
+	switch density {
+	case "s", "m", "l":
+		// Valid
+	default:
+		density = "l"
+	}
+
+	lastRefresh, ok, err := s.deps.Store.GetSetting(ctx, "last_refresh_at")
+	if err != nil {
+		return SettingsData{}, err
+	}
+	if !ok || lastRefresh == "" {
+		lastRefresh = "never"
+	}
+
+	p := s.deps.Providers
+	providers := []ProviderRow{
+		{Label: "TMDB", Configured: p.TMDB},
+		{Label: "OMDb", Configured: p.OMDB},
+		{Label: "IGDB", Configured: p.IGDB},
+		{Label: "Hardcover", Configured: p.Hardcover},
+		{Label: "Steam", Configured: p.Steam},
+	}
+
+	return SettingsData{
+		Nav:           nav,
+		ServiceGroups: serviceGroups(services),
+		Providers:     providers,
+		Density:       density,
+		LastRefresh:   lastRefresh,
 	}, nil
 }
 
@@ -425,14 +587,22 @@ type DetailData struct {
 	Avail       []AvailChip
 	NotesHTML   template.HTML
 	VerbFor     string // watch | read | play
+	Flash       string // "" | "added" | "duplicate"
 }
 
 // detailData builds the detail.html view model: transitions per
 // store.LegalTransitions, ratings, availability classified against a
 // subscribed-services map (same approach as tabData), and notes
-// rendered through goldmark.
-func (s *site) detailData(r *http.Request, it *store.MediaItem) (DetailData, error) {
+// rendered through goldmark. flash carries a one-shot banner code
+// ("added" | "duplicate") threaded through from the ?flash= query
+// param on the initial GET, or empty on a post-mutation refresh.
+func (s *site) detailData(r *http.Request, id int64, flash string) (DetailData, error) {
 	ctx := r.Context()
+
+	it, err := s.deps.Store.GetItem(ctx, id)
+	if err != nil {
+		return DetailData{}, err
+	}
 	group := groupFor(it.MediaType)
 
 	nav, err := s.nav(r, group)
@@ -514,5 +684,6 @@ func (s *site) detailData(r *http.Request, it *store.MediaItem) (DetailData, err
 		Avail:       chips,
 		NotesHTML:   notesHTML,
 		VerbFor:     verbFor[group],
+		Flash:       flash,
 	}, nil
 }

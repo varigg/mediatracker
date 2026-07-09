@@ -1,0 +1,51 @@
+{{define "content"}}<div id="settings-body">{{template "settings-body" .}}</div>{{end}}
+
+{{define "settings-body"}}
+<h2 class="sec">Services</h2>
+<div class="panel">
+ {{range .ServiceGroups}}
+  <div class="ph"><span class="tdot {{.DotClass}}"></span>{{.Label}}</div>
+  {{range .Services}}
+  <label class="setrow">
+   <input type="checkbox" {{if .Subscribed}}checked{{end}}
+     hx-post="/settings/services" hx-vals='{"slug":"{{.Slug}}"}' hx-target="#settings-body">
+   <span>{{.Name}}</span>
+  </label>
+  {{end}}
+ {{end}}
+</div>
+
+<h2 class="sec">Providers</h2>
+<div class="panel">
+ {{range .Providers}}
+ <div class="setrow static">
+  <span>{{.Label}}</span>
+  {{if .Configured}}<span class="cfg on">configured</span>{{else}}<span class="cfg">not configured</span>{{end}}
+ </div>
+ {{end}}
+</div>
+
+<h2 class="sec">Display</h2>
+<div class="panel">
+ <div class="setrow static density-picker">
+  <span>Row density</span>
+  <div class="radios">
+   <label><input type="radio" name="density" value="s" {{if eq .Density "s"}}checked{{end}}
+     hx-post="/settings/density" hx-vals='{"density":"s"}' hx-target="#settings-body">Small</label>
+   <label><input type="radio" name="density" value="m" {{if eq .Density "m"}}checked{{end}}
+     hx-post="/settings/density" hx-vals='{"density":"m"}' hx-target="#settings-body">Medium</label>
+   <label><input type="radio" name="density" value="l" {{if eq .Density "l"}}checked{{end}}
+     hx-post="/settings/density" hx-vals='{"density":"l"}' hx-target="#settings-body">Large</label>
+  </div>
+ </div>
+</div>
+
+<h2 class="sec">Refresh</h2>
+<div class="panel">
+ <div class="setrow static">
+  <span class="mono">Last refresh: {{.LastRefresh}}</span>
+  <button class="tbtn" hx-post="/refresh" hx-target="#refresh-status">Refresh now</button>
+  <span id="refresh-status"></span>
+ </div>
+</div>
+{{end}}

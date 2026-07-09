@@ -6,21 +6,31 @@
     {{$d := .}}
     {{range .States}}
     <a class="{{if .Active}}on{{end}}"
-       hx-get="/{{$d.Group}}?state={{.State}}{{if $d.Sub}}&type={{$d.Sub}}{{end}}"
+       hx-get="{{tabURL $d (kv "state" .State)}}"
        hx-target="#tab-body" hx-push-url="true"
-       href="/{{$d.Group}}?state={{.State}}">{{.Label}}<span class="mono">{{.Count}}</span></a>
+       href="{{tabURL $d (kv "state" .State)}}">{{.Label}}<span class="mono">{{.Count}}</span></a>
     {{end}}
   </div>
   {{if eq .Group "movies-tv"}}
   <div class="subtabs">
-    <a class="{{if eq .Sub ""}}on{{end}}" hx-get="/movies-tv?state={{.Filter.State}}" hx-target="#tab-body" hx-push-url="true" href="/movies-tv?state={{.Filter.State}}">All</a>
-    <a class="{{if eq .Sub "movie"}}on{{end}}" hx-get="/movies-tv?state={{.Filter.State}}&type=movie" hx-target="#tab-body" hx-push-url="true" href="/movies-tv?state={{.Filter.State}}&type=movie">Movies</a>
-    <a class="{{if eq .Sub "tv"}}on{{end}}" hx-get="/movies-tv?state={{.Filter.State}}&type=tv" hx-target="#tab-body" hx-push-url="true" href="/movies-tv?state={{.Filter.State}}&type=tv">TV</a>
+    <a class="{{if eq .Sub ""}}on{{end}}" hx-get="{{tabURL . (kv "type" "")}}" hx-target="#tab-body" hx-push-url="true" href="{{tabURL . (kv "type" "")}}">All</a>
+    <a class="{{if eq .Sub "movie"}}on{{end}}" hx-get="{{tabURL . (kv "type" "movie")}}" hx-target="#tab-body" hx-push-url="true" href="{{tabURL . (kv "type" "movie")}}">Movies</a>
+    <a class="{{if eq .Sub "tv"}}on{{end}}" hx-get="{{tabURL . (kv "type" "tv")}}" hx-target="#tab-body" hx-push-url="true" href="{{tabURL . (kv "type" "tv")}}">TV</a>
+  </div>
+  {{end}}
+  {{if .Genres}}
+  <div class="genresel">
+    <select name="genre" class="sel"
+      hx-get="{{tabURL . (kv "genre" "")}}" hx-include="this"
+      hx-target="#tab-body" hx-push-url="true">
+      <option value="">All genres</option>
+      {{range .Genres}}<option value="{{.}}"{{if eq . $.Filter.Genre}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
   </div>
   {{end}}
   <div class="tool-right">
     <label class="avail"><input type="checkbox" {{if .Filter.Available}}checked{{end}}
-      hx-get="/{{.Group}}?state={{.Filter.State}}{{if .Sub}}&type={{.Sub}}{{end}}{{if not .Filter.Available}}&available=1{{end}}"
+      hx-get="{{if .Filter.Available}}{{tabURL . (kv "available" "")}}{{else}}{{tabURL . (kv "available" "1")}}{{end}}"
       hx-target="#tab-body" hx-push-url="true">Available to me</label>
   </div>
 </div>
@@ -54,4 +64,4 @@
 <p class="resultmeta mono">{{.Total}} items</p>
 {{end}}
 
-{{define "th"}}<th><button type="button" hx-get="{{.Href}}" hx-target="#tab-body" hx-push-url="true">{{.Label}}<span class="dir">{{.Glyph}}</span></button></th>{{end}}
+{{define "th"}}<th><a hx-get="{{.Href}}" hx-target="#tab-body" hx-push-url="true" href="{{.Href}}">{{.Label}}<span class="dir">{{.Glyph}}</span></a></th>{{end}}

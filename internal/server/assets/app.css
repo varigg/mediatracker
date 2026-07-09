@@ -76,18 +76,26 @@ nav.tabs :is(a,button){display:flex;align-items:center;gap:7px;padding:0 11px;co
 nav.tabs :is(a,button):hover{color:var(--ink)}
 nav.tabs :is(a,button).on{color:var(--ink);border-bottom-color:var(--accent)}
 nav.tabs .n{font-size:11px;color:var(--muted)}
-.searchbox{margin-left:auto;position:relative}
+.setlink{margin-left:auto;color:var(--muted);font-weight:500;padding:2px 0;border-bottom:2px solid transparent}
+.setlink:hover{color:var(--ink)}
+.setlink.on{color:var(--ink);border-bottom-color:var(--accent)}
+.searchbox{position:relative;display:flex;align-items:center}
 .searchbox input{width:220px;padding:5px 10px 5px 28px;border:1px solid var(--hair);
   border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
 .searchbox .glyph{position:absolute;left:9px;top:6px;color:var(--muted)}
+.sel{border:1px solid var(--hair);border-radius:6px;background:var(--bg);color:var(--ink);
+  font:inherit;font-size:12px;padding:5px 6px}
+#qtype{margin-right:6px}
 .search-pop{position:absolute;top:36px;right:0;width:330px;background:var(--surface);
-  border:1px solid var(--hair);border-radius:8px;box-shadow:var(--shadow);padding:5px;display:none}
-.search-pop.open{display:block}
+  border:1px solid var(--hair);border-radius:8px;box-shadow:var(--shadow);padding:5px;display:none;
+  max-height:60vh;overflow-y:auto}
+.search-pop:not(:empty){display:block}
 .search-pop .cand{display:flex;gap:10px;padding:6px 8px;border-radius:6px;align-items:center;width:100%;text-align:left}
 .search-pop .cand:hover{background:var(--hair2)}
 .search-pop .thumb{width:26px;height:38px;border-radius:3px;flex:none}
 .search-pop .ct{font-weight:550}
 .search-pop .cs{color:var(--muted);font-size:12px}
+.search-hint{color:var(--muted);font-size:12.5px;padding:9px 8px}
 
 .wrap{max-width:1080px;margin:0 auto;padding:20px 24px}
 
@@ -111,8 +119,8 @@ label.avail input{accent-color:var(--accent)}
 table{width:100%;border-collapse:collapse;min-width:760px}
 th{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
   text-align:left;padding:9px 12px;border-bottom:1px solid var(--hair);white-space:nowrap;font-weight:650}
-th button{color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:inline-flex;gap:4px}
-th button:hover{color:var(--ink)}
+th :is(a,button){color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:inline-flex;gap:4px}
+th :is(a,button):hover{color:var(--ink)}
 th .dir{opacity:.9}
 td{padding:6px 12px;border-bottom:1px solid var(--hair2);vertical-align:middle}
 tr:last-child td{border-bottom:none}
@@ -187,6 +195,10 @@ h2.sec:first-child{margin-top:0}
 /* ---------- detail: A-style large cover, two columns ---------- */
 .back{color:var(--muted);font-size:12.5px;margin-bottom:14px;display:inline-flex;gap:6px}
 .back:hover{color:var(--ink)}
+.flash{background:var(--accent-tint);color:var(--accent-ink);border-radius:9px;
+  padding:9px 14px;margin-bottom:14px;font-weight:600}
+.error{background:var(--aband-tint);color:var(--aband);border-radius:9px;
+  padding:9px 14px;margin-bottom:14px;font-weight:600}
 .detail{display:grid;grid-template-columns:250px 1fr;gap:30px;align-items:start}
 .dcoverwrap{position:sticky;top:72px}
 .bigcover{aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;
@@ -226,6 +238,19 @@ h2.sec:first-child{margin-top:0}
 .metagrid{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:12.5px}
 .metagrid dt{color:var(--muted)}
 .metagrid dd{margin:0}
+
+/* ---------- settings ---------- */
+h2.sec + .panel{margin-bottom:22px}
+.setrow{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--hair2);cursor:pointer}
+.setrow:last-child{border-bottom:none}
+.setrow.static{cursor:default}
+.setrow input[type="checkbox"],.setrow input[type="radio"]{accent-color:var(--accent)}
+.cfg{font-size:10.5px;padding:1.5px 8px;border-radius:99px;background:var(--chip);color:var(--chip-ink);margin-left:auto;white-space:nowrap}
+.cfg.on{background:var(--accent-tint);color:var(--accent-ink);font-weight:600}
+.density-picker{justify-content:space-between}
+.radios{display:flex;gap:14px}
+.radios label{display:flex;gap:6px;align-items:center;cursor:pointer;color:var(--muted)}
+#refresh-status{color:var(--muted);font-size:12px}
 
 @media (max-width:720px){
   .top-in{gap:12px;padding:0 12px}

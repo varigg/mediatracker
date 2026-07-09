@@ -177,6 +177,65 @@ func TestListItemsSortDirection(t *testing.T) {
 	}
 }
 
+func TestDefaultDir(t *testing.T) {
+	// title is the one ascending-by-default sort; everything else
+	// (including the empty/unset sort) defaults to descending. Pinned
+	// directly since buildListQuery's ORDER BY and internal/server's
+	// sortLink both derive their default from this single function.
+	cases := map[string]string{
+		"title": "asc", "": "desc", "added": "desc", "year": "desc", "rating": "desc",
+	}
+	for sort, want := range cases {
+		if got := DefaultDir(sort); got != want {
+			t.Errorf("DefaultDir(%q) = %q, want %q", sort, got, want)
+		}
+	}
+}
+
+func TestDistinctGenres(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	seedListFixture(t, s)
+	// Alpha (movie, Drama, want_to), Bravo (tv, Comedy, want_to),
+	// Charlie (book, Drama, in_progress), Delta (game, no genre, want_to).
+
+	cases := []struct {
+		name  string
+		types []MediaType
+		state State
+		want  []string
+	}{
+		{"movie+tv types, no state filter", []MediaType{TypeMovie, TypeTV}, "",
+			[]string{"Comedy", "Drama"}},
+		{"want_to state, all types", nil, StateWantTo,
+			[]string{"Comedy", "Drama"}},
+		{"book type only", []MediaType{TypeBook}, "",
+			[]string{"Drama"}},
+		{"game type only: no genres present", []MediaType{TypeGame}, "",
+			nil},
+		// Pins the state predicate: only Charlie is in_progress, so
+		// Bravo's Comedy must be excluded even with no type filter.
+		{"in_progress state, all types", nil, StateInProgress,
+			[]string{"Drama"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := s.DistinctGenres(ctx, c.types, c.state)
+			if err != nil {
+				t.Fatalf("DistinctGenres: %v", err)
+			}
+			if len(got) != len(c.want) {
+				t.Fatalf("got %v, want %v", got, c.want)
+			}
+			for i := range got {
+				if got[i] != c.want[i] {
+					t.Fatalf("got %v, want %v", got, c.want)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildListQueryNormalizesBogusDir(t *testing.T) {
 	// A hand-constructed filter bypassing ParseListFilter must not be
 	// able to inject into ORDER BY: bogus directions fall back to the

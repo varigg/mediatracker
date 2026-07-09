@@ -13,10 +13,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/varigg/mediatracker/internal/ingest"
+	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
+	t.Helper()
+	return newTestServerWithIngest(t, providers.NewRegistry())
+}
+
+// newTestServerWithIngest is newTestServer with a caller-supplied
+// registry, for tests that need a working (possibly stub) metadata
+// provider wired into the add-flow.
+func newTestServerWithIngest(t *testing.T, reg *providers.Registry) (*httptest.Server, *store.Store, string) {
 	t.Helper()
 	dataDir := t.TempDir()
 	st, err := store.Open(context.Background(), filepath.Join(dataDir, "app.db"))
@@ -24,11 +34,22 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	ingestDeps := ingest.Deps{
+		Store:      st,
+		Registry:   reg,
+		Logger:     logger,
+		DataDir:    dataDir,
+		HTTPClient: http.DefaultClient,
+	}
+	refresher := ingest.NewRefresher(ingestDeps, time.Hour)
 	srv := httptest.NewServer(New(Deps{
 		Store:           st,
-		Logger:          slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		Logger:          logger,
 		DataDir:         dataDir,
 		RefreshInterval: 7 * 24 * time.Hour,
+		Refresher:       refresher,
+		Ingest:          ingestDeps,
 	}))
 	t.Cleanup(srv.Close)
 	return srv, st, dataDir

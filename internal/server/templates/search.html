@@ -1,0 +1,5 @@
+{{define "search-results"}}{{if .Hint}}<div class="search-hint">{{.Hint}}</div>{{else}}{{range .Candidates}}<form hx-post="/items" hx-target="#search-results" hx-swap="innerHTML" style="display:contents">
+ <input type="hidden" name="type" value="{{.Type}}">
+ <input type="hidden" name="provider_id" value="{{.ProviderID}}">
+ <button type="submit" class="cand">{{template "thumb" .Cover}}<span><span class="ct">{{.Title}}{{if .Year}} <span class="mono">({{.Year}})</span>{{end}}</span>{{if .Disambiguation}}<span class="cs">{{.Disambiguation}}</span>{{end}}</span></button>
+</form>{{else}}<div class="search-hint">No results.</div>{{end}}{{end}}{{end}}

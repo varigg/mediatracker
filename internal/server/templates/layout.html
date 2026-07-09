@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>mediatracker</title>
 <link rel="stylesheet" href="/assets/app.css">
+<!-- 4xx bodies are server-rendered inline-error fragments and must swap into the target; 5xx are unrendered system-failure text and must not replace page content. -->
+<meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"4..","swap":true,"error":true},{"code":"5..","swap":false,"error":true}]}'>
 <script src="/assets/htmx.min.js" defer></script>
 </head>
 <body>
@@ -16,9 +18,17 @@
     <a href="/books" class="{{if eq .Nav.Active "books"}}on{{end}}"><span class="tdot book"></span>Books <span class="n mono">{{index .Nav.Counts "books"}}</span></a>
     <a href="/games" class="{{if eq .Nav.Active "games"}}on{{end}}"><span class="tdot game"></span>Games <span class="n mono">{{index .Nav.Counts "games"}}</span></a>
   </nav>
+  <a class="setlink {{if eq .Nav.Active "settings"}}on{{end}}" href="/settings">Settings</a>
   <div class="searchbox">
     <span class="glyph">⌕</span>
-    <input placeholder="Add a movie, book, game…" disabled title="Add flow arrives in the next milestone">
+    <select id="qtype" class="sel" name="type">
+      <option value="movie">Movie</option><option value="tv">TV</option>
+      <option value="book">Book</option><option value="game">Game</option>
+    </select>
+    <input id="q" name="q" placeholder="Add a movie, book, game…" autocomplete="off"
+      hx-get="/search" hx-include="#qtype" hx-trigger="input changed delay:300ms"
+      hx-target="#search-results">
+    <div class="search-pop" id="search-results"></div>
   </div>
 </div></header>
 <main class="wrap">{{block "content" .}}{{end}}</main>
