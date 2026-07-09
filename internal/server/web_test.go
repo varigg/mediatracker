@@ -859,6 +859,58 @@ func TestSettingsProviderStatus(t *testing.T) {
 	}
 }
 
+func TestDetailAndSettingsShowStaleAvailability(t *testing.T) {
+	// A tiny RefreshInterval makes the 2×-interval staleness threshold
+	// breach almost immediately, letting the test avoid backdating rows
+	// through unexported store internals it can't reach.
+	srv, st, _ := newTestServerWithInterval(t, time.Millisecond)
+	ctx := context.Background()
+	it, _, err := st.CreateItem(ctx, store.NewItem{
+		MediaType: store.TypeMovie, Title: "Heat", Provider: "tmdb", ProviderID: "949"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetServiceSubscribed(ctx, "netflix", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertAvailability(ctx, it.ID, []store.Availability{
+		{ServiceSlug: "netflix", Kind: store.KindSubscription}}); err != nil {
+		t.Fatal(err)
+	}
+	// fetched_at has 1-second resolution (store.TimeFormat); sleep past a
+	// full second so the row is stale regardless of where within the
+	// current second the insert landed.
+	time.Sleep(1200 * time.Millisecond)
+
+	resp, body := get(t, srv, fmt.Sprintf("/items/%d", it.ID))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, `class="k stalek"`) {
+		t.Errorf("detail missing stale chip marker: %s", body)
+	}
+
+	_, body = get(t, srv, "/settings")
+	if !strings.Contains(body, "1 stale availability rows") {
+		t.Errorf("settings missing stale availability count: %s", body)
+	}
+}
+
+func TestDetailAvailabilityNotStaleByDefault(t *testing.T) {
+	srv, st, _ := newTestServer(t) // default week-long RefreshInterval
+	ids := seedWeb(t, st)
+
+	_, body := get(t, srv, fmt.Sprintf("/items/%d", ids["movie"]))
+	if strings.Contains(body, "stalek") {
+		t.Error("freshly seeded availability must not render as stale under the default refresh interval")
+	}
+
+	_, body = get(t, srv, "/settings")
+	if !strings.Contains(body, "No stale availability") {
+		t.Errorf("settings must report no stale availability by default: %s", body)
+	}
+}
+
 func TestAddNonHTMXRedirects303(t *testing.T) {
 	reg := providers.NewRegistry()
 	reg.Register(store.TypeMovie, stubSearchProvider{details: &providers.ItemDetails{

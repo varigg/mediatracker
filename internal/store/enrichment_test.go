@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func strPtr(s string) *string { return &s }
@@ -78,6 +79,56 @@ func TestUpsertAvailabilityPreservesFirstSeen(t *testing.T) {
 	}
 	if rows[0].URL == nil || *rows[0].URL != "https://www.netflix.com/title/2" {
 		t.Errorf("url = %v, want updated title/2", rows[0].URL)
+	}
+}
+
+func TestCountStaleAvailability(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	fresh := mustCreate(t, s, NewItem{MediaType: TypeMovie, Title: "Heat", Provider: "tmdb", ProviderID: "949"})
+	old := mustCreate(t, s, NewItem{MediaType: TypeMovie, Title: "Ran", Provider: "tmdb", ProviderID: "11645"})
+
+	if err := s.UpsertAvailability(ctx, fresh.ID, []Availability{
+		{ServiceSlug: "netflix", Kind: "subscription"},
+	}); err != nil {
+		t.Fatalf("UpsertAvailability: %v", err)
+	}
+	if err := s.UpsertAvailability(ctx, old.ID, []Availability{
+		{ServiceSlug: "hulu", Kind: "subscription"},
+	}); err != nil {
+		t.Fatalf("UpsertAvailability: %v", err)
+	}
+
+	// Backdate only the "old" row's fetched_at via direct SQL — the
+	// pattern TestUpsertAvailabilityPreservesFirstSeen already uses.
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE availability SET fetched_at = '2000-01-01 00:00:00' WHERE item_id = ?`, old.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	cutoff, err := time.Parse(TimeFormat, "2010-01-01 00:00:00")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.CountStaleAvailability(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("CountStaleAvailability: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("CountStaleAvailability(cutoff between rows) = %d, want 1", n)
+	}
+
+	past, err := time.Parse(TimeFormat, "1990-01-01 00:00:00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err = s.CountStaleAvailability(ctx, past)
+	if err != nil {
+		t.Fatalf("CountStaleAvailability: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("CountStaleAvailability(cutoff before both rows) = %d, want 0", n)
 	}
 }
 

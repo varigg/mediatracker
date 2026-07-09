@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // ReplaceRatings replaces all rating rows for an item atomically.
@@ -98,6 +99,21 @@ func (s *Store) GetAvailability(ctx context.Context, itemID int64) ([]Availabili
 		return nil, fmt.Errorf("store: get availability: %w", err)
 	}
 	return out, nil
+}
+
+// CountStaleAvailability returns the number of availability rows whose
+// fetched_at predates cutoff — rows the caller considers stale (spec §5:
+// 2× the refresh interval). The threshold itself is the caller's concern;
+// this is a plain count query.
+func (s *Store) CountStaleAvailability(ctx context.Context, cutoff time.Time) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM availability WHERE fetched_at < ?`,
+		cutoff.UTC().Format(TimeFormat)).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("store: count stale availability: %w", err)
+	}
+	return n, nil
 }
 
 func (s *Store) ListServices(ctx context.Context) ([]Service, error) {

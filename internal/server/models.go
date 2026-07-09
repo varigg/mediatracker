@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/varigg/mediatracker/internal/providers"
 	"github.com/varigg/mediatracker/internal/store"
@@ -430,6 +431,7 @@ type SettingsData struct {
 	Providers     []ProviderRow
 	Density       string
 	LastRefresh   string // "never" fallback
+	StaleCount    int
 }
 
 // mediaKindLabel maps a store.Service.MediaKind value to the same group
@@ -495,6 +497,12 @@ func (s *site) settingsData(r *http.Request) (SettingsData, error) {
 		lastRefresh = "never"
 	}
 
+	staleCutoff := time.Now().Add(-2 * s.deps.RefreshInterval)
+	staleCount, err := s.deps.Store.CountStaleAvailability(ctx, staleCutoff)
+	if err != nil {
+		return SettingsData{}, err
+	}
+
 	p := s.deps.Providers
 	providers := []ProviderRow{
 		{Label: "TMDB", Configured: p.TMDB},
@@ -510,6 +518,7 @@ func (s *site) settingsData(r *http.Request) (SettingsData, error) {
 		Providers:     providers,
 		Density:       density,
 		LastRefresh:   lastRefresh,
+		StaleCount:    staleCount,
 	}, nil
 }
 
@@ -568,6 +577,9 @@ type RatingCard struct {
 type AvailChip struct {
 	Label, Kind, Class string
 	URL                *string
+	// Stale marks a chip whose fetched_at breaches 2× the refresh
+	// interval (spec §5). Cosmetic only — never blocks rendering.
+	Stale bool
 }
 
 // DetailData is the detail.html view model.
@@ -631,6 +643,10 @@ func (s *site) detailData(r *http.Request, id int64, flash string) (DetailData, 
 	for _, sv := range services {
 		svcByCode[sv.Slug] = sv
 	}
+	// Staleness threshold per spec §5: fetched_at older than 2× the
+	// refresh interval. Unparseable timestamps degrade silently to
+	// "not stale" — this is a cosmetic marker, not a correctness gate.
+	staleCutoff := time.Now().Add(-2 * s.deps.RefreshInterval)
 	chips := make([]AvailChip, 0, len(avail))
 	for _, a := range avail {
 		sv := svcByCode[a.ServiceSlug]
@@ -647,7 +663,11 @@ func (s *site) detailData(r *http.Request, id int64, flash string) (DetailData, 
 		case sv.Subscribed:
 			class, kind = "sub", "subscribed"
 		}
-		chips = append(chips, AvailChip{Label: label, Kind: kind, Class: class, URL: url})
+		stale := false
+		if fetched, err := time.Parse(store.TimeFormat, a.FetchedAt); err == nil {
+			stale = fetched.Before(staleCutoff)
+		}
+		chips = append(chips, AvailChip{Label: label, Kind: kind, Class: class, URL: url, Stale: stale})
 	}
 
 	legal := store.LegalTransitions(it.State)

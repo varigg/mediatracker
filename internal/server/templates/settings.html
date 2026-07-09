@@ -47,5 +47,9 @@
   <button class="tbtn" hx-post="/refresh" hx-target="#refresh-status">Refresh now</button>
   <span id="refresh-status"></span>
  </div>
+ <div class="setrow static">
+  {{if gt .StaleCount 0}}<span class="mono stalek">{{.StaleCount}} stale availability rows</span>
+  {{else}}<span class="mono">No stale availability</span>{{end}}
+ </div>
 </div>
 {{end}}
